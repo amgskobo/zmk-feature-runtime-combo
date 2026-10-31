@@ -1,5 +1,17 @@
 # zmk-feature-runtime-combo
 
+## Reviewed fork
+
+This fork's reviewed source is on `codex/runtime-combo-review` in
+[`amgskobo/zmk-feature-runtime-combo`](https://github.com/amgskobo/zmk-feature-runtime-combo/tree/codex/runtime-combo-review).
+Select that repository URL and revision in the module's west project entry.
+Keep the module's documented imports enabled where required. The original
+upstream installation examples below describe the upstream repository.
+
+The dependency manifests select the available Custom Settings revision
+`b91a8ceb0a57a0cf41b34270752d79463e2848fa` from its reviewed fork;
+production imports and isolated tests use the same registry implementation.
+
 ![ZMK Version](https://img.shields.io/badge/ZMK-master-blue)
 [![Test](https://github.com/cormoran/zmk-feature-runtime-combo/actions/workflows/zmk-module.yml/badge.svg?branch=main)](https://github.com/cormoran/zmk-feature-runtime-combo/actions/workflows/zmk-module.yml)
 
@@ -13,6 +25,8 @@ stored by numeric slot internally and can also have a display name for the Web U
 ## Features
 
 - Runtime editable combo slots.
+- An active combo retains its original behavior, positions count and release
+  policy until release, even if its slot is edited, disabled or reset meanwhile.
 - Compile-time default combos declared in the `.keymap`, active immediately
   after flashing and restorable after a runtime edit.
 - Separate RPC methods for combo content and combo names to keep request payloads
@@ -22,12 +36,24 @@ stored by numeric slot internally and can also have a display name for the Web U
   runtime combos, with per-combo overrides for all three.
 - Native-parity overlap resolution: if one combo's positions are a subset of
   another enabled combo's positions, the longer combo always wins.
-- Up to 63 combo slots, decoded into a RAM cache so the key-event hot path
-  never touches the settings registry.
+- Up to 16 combo slots (`CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS`, default 8; one
+  Studio list response holds 16), decoded into a RAM cache so the key-event hot
+  path never touches the settings registry. An edit marks its slot stale and
+  the next key event rebuilds it, so the cache is only touched by the thread
+  that matches combos. Settings loaded at boot and changes made past this
+  module's API (the generic custom settings RPC) are picked up the same way.
+- Like ZMK's own combos, runtime combos resolve on the split central (or a
+  non-split keyboard); enable them in the central's configuration only.
 - Name and combo arrays stored through
   [zmk-feature-custom-settings](https://github.com/cormoran/zmk-feature-custom-settings).
 - React Web UI for listing and editing combo slots, with a clickable layout
   for picking positions and a searchable behavior list.
+
+Combos and the global settings can be read while Studio is locked. Every change
+(a combo, its name, delete, reset, the global timeout, slow release and
+require-prior-idle settings, save and discard) needs an unlocked Studio,
+because a combo can run any behavior, including the bootloader or clearing
+bonds; a locked keyboard answers "Unlock required" and changes nothing.
 
 ## Storage Format
 
@@ -79,6 +105,16 @@ flashing and survive a settings erase:
     };
 };
 ```
+
+Each raw `key-positions` cell must be in `0..65535`; each `layers` cell must be
+in `0..31`, the width of the runtime layer mask. Both timer overrides accept
+`0..65535` ms, with zero or omission inheriting the global value. These limits
+are checked at compile time before narrowing or bit shifts, including every
+element of a list. The slot must fit the configured slot count, and the number
+of positions must be between two and the configured maximum. The owner's
+[production DTS boundary fixture](tests/dt-defaults/README.md) retains valid
+boundaries and named compiler failures; ordinary defaults/RPC/native/board
+checks remain required.
 
 A slot's effective value follows this order:
 
@@ -174,7 +210,11 @@ available on the connected firmware.
 
 ```bash
 # Run unit test + build test and verify results
-python3 -m unittest
+python3 -m unittest discover -s tests -p test_owner.py
+
+# Native registration/snapshot and held-combo update regressions only,
+# from an already resolved owner workspace (no west update)
+PYTHONPATH=tests python3 -m unittest -v test_owner.WestCommandsTests.test_zmk_test test_owner.WestCommandsTests.test_active_updates
 
 # Run build test directly
 west zmk-build tests/zmk-config
@@ -185,6 +225,10 @@ west zmk-test tests -m .
 # Run web tests
 cd web && npm test
 ```
+
+The held-combo regression uses actual ZMK events, HID state and Zephyr settings
+dispatch. See [tests/active-update/README.md](tests/active-update/README.md) for
+its controlled storage boundary and upstream/DYA commands.
 
 The Web protobuf TypeScript files are generated with:
 

@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "owner": "zmk-runtime-combo-fork",
+  "supported_cores": [
+    "dya"
+  ],
+  "unsupported_core_status": "NOT APPLICABLE",
+  "commands": [
+    "python3 -m unittest discover -v -s tests -p test_owner.py",
+    "bash tests/run-web.sh"
+  ],
+  "coverage_map": "tests/README.md",
+  "preserved_assertions": "Relocated fixtures retain their prior assertions; no snapshot auto-accept or unique assertion removal.",
+  "execution": {
+    "quick": "All behavioral scenarios once; sanitizer variants where supported.",
+    "full": "Same scenarios plus relevant optimization, ABI, role, kernel and supported-core checks.",
+    "outputs": "Use a fresh evidence directory; existing evidence is never overwritten."
+  },
+  "gaps": [
+    "Physical USB/BLE/split delivery, timing, power and retention require matching production-board evidence."
+  ],
+  "native_verification": "tests/native_verifier.py: actual exit, registered test completion, raw ordered logs, unchanged snapshots, identical binary repeated three times.",
+  "timeout_width": {
+    "entry": "python3 -m unittest discover -s tests -p test_timeout_width.py -v",
+    "contract": "Full uint32 milliseconds, exact ceiling and configured kernel tick ABI; independent wide oracle and identified math/width controls",
+    "physical": "NOT RUN"
+  },
+  "regression_fixtures": [
+    {
+      "fixture": "tests/dt-defaults/run.py (canonical test_dt_defaults_validation)",
+      "contract": "Actual production DTS/CMake/generated headers/runtime_combo.c object compile: every raw position<=65535 and layer<=31 checked before narrowing/shift, both timer overrides<=65535, inherited zero/omitted and valid upper boundaries retained. First/middle/last invalid cells, uint32 max, slot/count bounds and exact diagnostics covered in23cases.",
+      "negative_control": "Before-repair source compiles16invalid position/layer/timer cases; same owner assertions report16failures of23 while existing slot/count controls pass. Warnings do not count as refusal.",
+      "limits": "Object compile guard verification only; ordinary owner native/defaults/overrides/discard/RPC/board matrix remains required. Physical USB/BLE/split/timing/power/reset NOT RUN."
+    }
+  ]
+}
