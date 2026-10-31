@@ -1,11 +1,13 @@
 config ZMK_RUNTIME_COMBO
     bool "Enable runtime combo"
+    depends on !ZMK_SPLIT || ZMK_SPLIT_ROLE_CENTRAL
     select SETTINGS
     select ZMK_CUSTOM_SETTINGS
     select ZMK_BEHAVIOR_LOCAL_IDS
     help
       Enable combos that can be changed at runtime through the custom Studio RPC
-      subsystem.
+      subsystem. Like ZMK's own combos they resolve on the central, which
+      receives every position.
 
 if ZMK_RUNTIME_COMBO
 
@@ -17,11 +19,11 @@ config ZMK_RUNTIME_COMBO_STUDIO_RPC
 config ZMK_RUNTIME_COMBO_MAX_COMBOS
     int "Maximum runtime combos"
     default 8
-    range 1 63
+    range 1 16
     help
-      Each configured slot holds a decoded copy in a RAM cache used on the
-      key-event hot path, at roughly 64 bytes per slot (e.g. ~4 KB total at
-      the maximum of 63). Budget accordingly on RAM-constrained boards.
+      Each slot holds a decoded copy in a RAM cache used on the key-event hot
+      path, roughly 64 bytes per slot. The Studio list response carries at
+      most 16 combos, which bounds this.
 
 config ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO
     int "Maximum positions per runtime combo"
@@ -44,9 +46,20 @@ config ZMK_RUNTIME_COMBO_DEFAULT_REQUIRE_PRIOR_IDLE_MS
 
 config ZMK_RUNTIME_COMBO_TEST
     bool "Enable runtime combo self-test setup"
+    help
+      Owner zmk-test fixtures only. The setup overwrites combo slots on the
+      first key event; never enable it in a keyboard build.
 
 config ZMK_RUNTIME_COMBO_TEST_DISCARD
     bool "Exercise zmk_runtime_combo_invalidate_cache() in the self-test setup"
     depends on ZMK_RUNTIME_COMBO_TEST
 
 endif
+
+config ZMK_RUNTIME_COMBO_FORK_LOG_LEVEL
+    int "zmk-runtime-combo-fork log level (0 off, 1 error, 2 warning, 3 info, 4 debug)"
+    range 0 4
+    default 3
+    help
+      Logs contain operational state and numeric diagnostics, never input
+      contents, user labels, peer addresses or authentication material.

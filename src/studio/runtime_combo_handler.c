@@ -12,13 +12,18 @@
 #include <pb_encode.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/sys/util.h>
+#include <zmk/studio/core.h>
 #include <zmk/studio/custom.h>
 
 #include <cormoran/runtime_combo/runtime_combo.h>
 #include <cormoran/runtime_combo/runtime_combo.pb.h>
 #include <cormoran/zmk/custom_settings.h>
 
-LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
+#ifndef CONFIG_ZMK_RUNTIME_COMBO_FORK_LOG_LEVEL
+#define CONFIG_ZMK_RUNTIME_COMBO_FORK_LOG_LEVEL 3
+#endif
+LOG_MODULE_REGISTER(zmk_runtime_combo_fork_runtime_combo_handler,
+                    CONFIG_ZMK_RUNTIME_COMBO_FORK_LOG_LEVEL);
 
 static bool runtime_combo_rpc_handle_request(const zmk_custom_CallRequest *raw_request,
                                              pb_callback_t *encode_response);
@@ -33,6 +38,14 @@ ZMK_RPC_CUSTOM_SUBSYSTEM(cormoran__runtime_combo, &runtime_combo_meta,
 
 ZMK_RPC_CUSTOM_SUBSYSTEM_RESPONSE_BUFFER(cormoran__runtime_combo, cormoran_runtime_combo_Response);
 
+/* ListCombos answers every slot in one response. */
+BUILD_ASSERT(CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS <=
+                 ARRAY_SIZE(((cormoran_runtime_combo_ListCombosResponse *)NULL)->combos),
+             "CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS exceeds the ListCombosResponse capacity");
+BUILD_ASSERT(CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO <=
+                 ARRAY_SIZE(((cormoran_runtime_combo_Combo *)NULL)->key_positions),
+             "CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO exceeds the Combo capacity");
+
 static void set_error(cormoran_runtime_combo_Response *resp, const char *message) {
     cormoran_runtime_combo_ErrorResponse err = cormoran_runtime_combo_ErrorResponse_init_zero;
     snprintf(err.message, sizeof(err.message), "%s", message);
@@ -40,11 +53,20 @@ static void set_error(cormoran_runtime_combo_Response *resp, const char *message
     resp->response_type.error = err;
 }
 
-static void set_errno_error(cormoran_runtime_combo_Response *resp, const char *op, int err) {
-    cormoran_runtime_combo_ErrorResponse error = cormoran_runtime_combo_ErrorResponse_init_zero;
-    snprintf(error.message, sizeof(error.message), "%s failed: %d", op, err);
-    resp->which_response_type = cormoran_runtime_combo_Response_error_tag;
-    resp->response_type.error = error;
+/* A runtime combo can run any behavior (key presses, bootloader, bond clearing),
+ * and its settings declare SECURE write permission. This RPC writes them
+ * directly, past the custom-settings permission check, and the subsystem stays
+ * UNSECURED so combos can be listed while Studio is locked. Every request other
+ * than the reads therefore checks the lock here. */
+static bool request_needs_unlock(pb_size_t request_type) {
+    switch (request_type) {
+    case cormoran_runtime_combo_Request_list_combos_tag:
+    case cormoran_runtime_combo_Request_get_combo_tag:
+    case cormoran_runtime_combo_Request_get_global_settings_tag:
+        return false;
+    default:
+        return true;
+    }
 }
 
 static cormoran_runtime_combo_SlowReleaseOverride
@@ -118,25 +140,25 @@ static int fill_combo_message(uint32_t index, cormoran_runtime_combo_Combo *mess
     return 0;
 }
 
-static int handle_list_combos(cormoran_runtime_combo_Response *resp) {
-    cormoran_runtime_combo_ListCombosResponse result =
-        cormoran_runtime_combo_ListCombosResponse_init_zero;
+static void handle_list_combos(cormoran_runtime_combo_Response *resp) {
+    /* Built in the (zeroed) response buffer itself: a second copy would put
+     * the whole list on the RPC thread's stack. */
+    cormoran_runtime_combo_ListCombosResponse *result = &resp->response_type.list_combos;
+    resp->which_response_type = cormoran_runtime_combo_Response_list_combos_tag;
     uint32_t count = MIN(zmk_runtime_combo_count(), zmk_runtime_combo_max_count());
 
     for (uint32_t i = 0; i < count; i++) {
-        int ret = fill_combo_message(i, &result.combos[result.combos_count]);
-        if (ret == -ENOENT) {
+        int ret = fill_combo_message(i, &result->combos[result->combos_count]);
+        if (ret < 0) {
+            /* An unreadable slot (e.g. its behavior left the keymap) must not
+             * hide the others; it stays reachable by index to reset it. */
+            if (ret != -ENOENT) {
+                LOG_WRN("Runtime combo slot %d unreadable (%d), not listed", (int)i, ret);
+            }
             continue;
         }
-        if (ret < 0) {
-            return ret;
-        }
-        result.combos_count++;
+        result->combos_count++;
     }
-
-    resp->which_response_type = cormoran_runtime_combo_Response_list_combos_tag;
-    resp->response_type.list_combos = result;
-    return 0;
 }
 
 static int handle_get_combo(const cormoran_runtime_combo_GetComboRequest *req,
@@ -319,11 +341,8 @@ static int handle_save(cormoran_runtime_combo_Response *resp) {
     uint32_t affected_count = 0;
     int ret =
         zmk_custom_settings_save_scope(ZMK_RUNTIME_COMBO_SUBSYSTEM_ID, NULL, NULL, &affected_count);
-    /* save_scope() doesn't itself change any in-memory value, but the
-     * decoded-combo cache is rebuilt here too for the same reason as
-     * discard: neither operation runs through
-     * zmk_runtime_combo_write()/reset(), so the cache would otherwise never
-     * learn about it. */
+    /* Save and discard bypass zmk_runtime_combo_write()/reset(). Their change
+     * events mark the key-event cache too; marking here does not rely on it. */
     zmk_runtime_combo_invalidate_cache();
     if (ret < 0) {
         return ret;
@@ -361,10 +380,17 @@ static bool runtime_combo_rpc_handle_request(const zmk_custom_CallRequest *raw_r
         return true;
     }
 
+    if (request_needs_unlock(req.which_request_type) &&
+        zmk_studio_core_get_lock_state() != ZMK_STUDIO_CORE_LOCK_STATE_UNLOCKED) {
+        LOG_WRN("Runtime combo change refused: Studio is locked");
+        set_error(resp, "Unlock required");
+        return true;
+    }
+
     int ret = 0;
     switch (req.which_request_type) {
     case cormoran_runtime_combo_Request_list_combos_tag:
-        ret = handle_list_combos(resp);
+        handle_list_combos(resp);
         break;
     case cormoran_runtime_combo_Request_get_combo_tag:
         ret = handle_get_combo(&req.request_type.get_combo, resp);
@@ -405,7 +431,9 @@ static bool runtime_combo_rpc_handle_request(const zmk_custom_CallRequest *raw_r
     }
 
     if (ret < 0) {
-        set_errno_error(resp, "Runtime combo request", ret);
+        char message[sizeof(resp->response_type.error.message)];
+        snprintf(message, sizeof(message), "Runtime combo request failed: %d", ret);
+        set_error(resp, message);
     }
     return true;
 }

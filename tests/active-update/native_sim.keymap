@@ -1,0 +1,20 @@
+#include <dt-bindings/zmk/keys.h>
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/kscan_mock.h>
+/ {
+    /* Read-only during the boot-load, global-save-failure and generic-write
+     * groups, so no write of their own marks the cache. */
+    runtime_combo_defaults {
+        compatible = "cormoran,runtime-combo-defaults";
+        combo_default_d {
+            slot = <5>;
+            key-positions = <2 3>;
+            bindings = <&kp D>;
+        };
+    };
+    keymap {
+        compatible = "zmk,keymap";
+        default_layer { bindings = <&kp A &kp A &kp A &kp A>; };
+    };
+};
+&kscan { events = <ZMK_MOCK_PRESS(1,1,10) ZMK_MOCK_RELEASE(1,1,30000)>; };

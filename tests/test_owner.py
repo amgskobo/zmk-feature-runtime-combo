@@ -1,18 +1,30 @@
 import platform
+import os
+import tempfile
 import re
-import shutil
 import subprocess
 import unittest
 from pathlib import Path
 
 from dataclasses import dataclass
 
-THIS_DIR = Path(__file__).parent.resolve()
+from native_verifier import verify_native
+from test_native_verifier import NativeVerifierContract as NativeVerifierContract
+from test_timeout_width import TimeoutWidth as TimeoutWidth
+
+from test_build_budget import BuildBudgetContract as BuildBudgetContract
+
+THIS_DIR = Path(__file__).resolve().parent.parent
 
 
 def run_west(
     args: list[str], cwd: Path | None = None
 ) -> subprocess.CompletedProcess[str]:
+    if args and args[0] == "zmk-build":
+        parallelism = int(os.environ.get("OWNER_TEST_BUILD_PARALLELISM", "1"))
+        if parallelism < 1:
+            raise ValueError("OWNER_TEST_BUILD_PARALLELISM must be a positive integer")
+        args = [args[0], "--parallelism", str(parallelism), *args[1:]]
     return subprocess.run(
         ["west", *args],
         capture_output=True,
@@ -51,7 +63,13 @@ class WestCommandsTests(unittest.TestCase):
             raise AssertionError("west zmk-build extension is unavailable")
 
         cls.WEST_TOPDIR = Path(run_west(["topdir"], cwd=cls.WEST_CWD).stdout.strip())
-        cls.BUILD_DIR = THIS_DIR / "build"
+        requested_output = os.environ.get("OWNER_TEST_OUTPUT")
+        if requested_output:
+            cls.BUILD_DIR = Path(requested_output).resolve()
+            cls.BUILD_DIR.mkdir(parents=True, exist_ok=False)
+        else:
+            cls.BUILD_DIR = Path(tempfile.mkdtemp(prefix=THIS_DIR.name + "-tests-"))
+        print(f"Owner test output: {cls.BUILD_DIR}", flush=True)
         custom_settings_path = run_west(
             ["list", "-f", "{path}", "zmk-feature-custom-settings"], cwd=cls.WEST_CWD
         ).stdout.strip()
@@ -65,11 +83,75 @@ class WestCommandsTests(unittest.TestCase):
         platform.system() == "Linux", "zmk-test is only supported on Linux"
     )
     def test_zmk_test(self):
-        for test_case in ("test", "studio", "overrides", "defaults", "discard"):
+        cases = ("test", "studio", "overrides", "defaults", "discard")
+        self.assertEqual(
+            {
+                path.parent.relative_to(THIS_DIR / "tests").as_posix()
+                for path in (THIS_DIR / "tests").rglob("native_sim.keymap")
+            },
+            {*cases, "active-update"},
+            "Every native fixture needs an explicit canonical owner entry",
+        )
+        for test_case in cases:
             test_build_dir = self.BUILD_DIR / THIS_DIR.name / test_case
-            shutil.rmtree(test_build_dir, ignore_errors=True)
 
             self._run_zmk_test_case(test_case, test_build_dir)
+
+    @unittest.skipUnless(platform.system() == "Linux", "native_sim requires Linux")
+    def test_active_updates(self):
+        result = subprocess.run(
+            [
+                "bash",
+                str(THIS_DIR / "tests" / "active-update" / "run.sh"),
+                str(self.WEST_TOPDIR),
+            ],
+            env={
+                **os.environ,
+                "COMBO_NATIVE_ARTIFACTS": os.environ.get(
+                    "COMBO_NATIVE_ARTIFACTS", str(self.BUILD_DIR / "active-update")
+                ),
+            },
+            capture_output=True,
+            text=True,
+            cwd=self.WEST_CWD,
+        )
+        (self.BUILD_DIR / "test_active_updates.log").write_text(
+            result.stdout + result.stderr, encoding="utf-8"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(platform.system() == "Linux", "host build requires Linux")
+    def test_rpc_lock(self):
+        result = subprocess.run(
+            ["python3", str(THIS_DIR / "tests" / "rpc-lock" / "run.py")],
+            capture_output=True,
+            text=True,
+            cwd=self.WEST_CWD,
+        )
+        (self.BUILD_DIR / "test_rpc_lock.log").write_text(
+            result.stdout + result.stderr, encoding="utf-8"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(
+        platform.system() == "Linux", "production DTS compile requires Linux"
+    )
+    def test_dt_defaults_validation(self):
+        result = subprocess.run(
+            ["python3", str(THIS_DIR / "tests/dt-defaults/run.py")],
+            env={
+                **os.environ,
+                "COMBO_DT_ARTIFACTS": str(self.BUILD_DIR / "dt-defaults"),
+            },
+            capture_output=True,
+            text=True,
+            cwd=self.WEST_CWD,
+        )
+        (self.BUILD_DIR / "test_dt_defaults_validation.log").write_text(
+            result.stdout + result.stderr, encoding="utf-8"
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("runtime combo DTS defaults cases=23 failures=0", result.stdout)
 
     def test_zmk_build(self):
         self._test_zmk_build(
@@ -124,9 +206,6 @@ class WestCommandsTests(unittest.TestCase):
         self, artifacts_and_expected_build_params: dict[str, ConfigAndDeviceTree]
     ):
 
-        for artifact in artifacts_and_expected_build_params.keys():
-            shutil.rmtree(self.BUILD_DIR / artifact, ignore_errors=True)
-
         zephyr_cache_dir = self.BUILD_DIR / ".zephyr-cache"
         toolchain_cache_dir = zephyr_cache_dir / "ToolchainCapabilityDatabase"
         toolchain_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -136,6 +215,8 @@ class WestCommandsTests(unittest.TestCase):
                 "zmk-build",
                 str(THIS_DIR / "tests" / "zmk-config"),
                 "-q",
+                "-P",
+                "1",
                 "-m",
                 str(THIS_DIR),
                 str(self.CUSTOM_SETTINGS_MODULE),
@@ -240,6 +321,8 @@ class WestCommandsTests(unittest.TestCase):
             0,
             f"{test_case} event filtering failed\n{filtered.stderr}",
         )
+
+        verify_native(build_dir, THIS_DIR / "tests", fixtures=[test_case])
 
         expected = (test_path / "keycode_events.snapshot").read_text()
         self.assertEqual(

@@ -1,0 +1,3 @@
+tests/**/events.patterns text eol=lf
+tests/**/*.snapshot text eol=lf
+web/** text=auto eol=lf
