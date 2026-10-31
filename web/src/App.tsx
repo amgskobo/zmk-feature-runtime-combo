@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { connect as serial_connect } from "@zmkfirmware/zmk-studio-ts-client/transport/serial";
 import {
@@ -122,7 +122,21 @@ function App() {
   );
 }
 
+const connectionIds = new WeakMap<object, number>();
+let nextConnectionId = 1;
 export function RPCTestSection() {
+  const app = useContext(ZMKAppContext);
+  const connection = app?.state.connection;
+  let identity = 0;
+  if (connection) {
+    identity = connectionIds.get(connection) ?? nextConnectionId++;
+    connectionIds.set(connection, identity);
+  }
+  const index = app?.findSubsystem(SUBSYSTEM_IDENTIFIER)?.index;
+  return <RuntimeComboSession key={`${identity}:${index ?? "missing"}`} />;
+}
+
+function RuntimeComboSession() {
   const zmkApp = useContext(ZMKAppContext);
   const [combos, setCombos] = useState<Combo[]>([]);
   const [globalSettings, setGlobalSettings] =
@@ -134,28 +148,50 @@ export function RPCTestSection() {
   const subsystem = zmkApp?.findSubsystem(SUBSYSTEM_IDENTIFIER);
   const connection = zmkApp?.state.connection;
   const subsystemIndex = subsystem?.index;
+  const lifetime = useRef({ active: true, pending: 0, combos: 0, settings: 0 });
+  useEffect(() => {
+    const current = lifetime.current;
+    current.active = true;
+    return () => {
+      current.active = false;
+    };
+  }, []);
+  const startRequest = useCallback(() => {
+    lifetime.current.pending++;
+    setIsLoading(true);
+  }, []);
+  const endRequest = useCallback(() => {
+    lifetime.current.pending--;
+    if (lifetime.current.active) setIsLoading(lifetime.current.pending > 0);
+  }, []);
   const physicalLayoutKeys = usePhysicalLayoutKeys(connection);
   const behaviorOptions = useBehaviorOptions(connection);
 
   const callRuntimeComboRPC = useCallback(
     async (request: Request): Promise<Response | null> => {
-      if (!connection || subsystemIndex === undefined) return null;
+      if (!lifetime.current.active) throw new Error("Retired combo request");
+      if (!connection || subsystemIndex === undefined)
+        throw new Error("Combo subsystem unavailable");
       const service = new ZMKCustomSubsystem(connection, subsystemIndex);
       const payload = Request.encode(request).finish();
       const responsePayload = await service.callRPC(payload);
-      return responsePayload ? Response.decode(responsePayload) : null;
+      if (!lifetime.current.active) throw new Error("Retired combo request");
+      if (!responsePayload) throw new Error("Empty combo response");
+      return Response.decode(responsePayload);
     },
     [connection, subsystemIndex]
   );
 
   const refreshCombos = useCallback(async () => {
     if (!connection || subsystemIndex === undefined) return;
-    setIsLoading(true);
+    const ticket = ++lifetime.current.combos;
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
         Request.create({ listCombos: {} })
       );
+      if (ticket !== lifetime.current.combos) return;
       if (resp?.listCombos) {
         setCombos(resp.listCombos.combos);
       } else if (resp?.error) {
@@ -164,18 +200,26 @@ export function RPCTestSection() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
-  }, [callRuntimeComboRPC, connection, subsystemIndex]);
+  }, [
+    callRuntimeComboRPC,
+    connection,
+    subsystemIndex,
+    startRequest,
+    endRequest,
+  ]);
 
   const refreshGlobalSettings = useCallback(async () => {
     if (!connection || subsystemIndex === undefined) return;
-    setIsLoading(true);
+    const ticket = ++lifetime.current.settings;
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
         Request.create({ getGlobalSettings: {} })
       );
+      if (ticket !== lifetime.current.settings) return;
       if (resp?.getGlobalSettings?.settings) {
         const settings: GlobalSettings = resp.getGlobalSettings.settings;
         setGlobalSettings({
@@ -191,9 +235,15 @@ export function RPCTestSection() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
-  }, [callRuntimeComboRPC, connection, subsystemIndex]);
+  }, [
+    callRuntimeComboRPC,
+    connection,
+    subsystemIndex,
+    startRequest,
+    endRequest,
+  ]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -242,7 +292,7 @@ export function RPCTestSection() {
   };
 
   const saveCombo = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -277,17 +327,21 @@ export function RPCTestSection() {
           },
         })
       );
-      setMessage(nameResp?.error?.message ?? "Combo saved");
+      if (nameResp?.error) {
+        setMessage(nameResp.error.message);
+        return;
+      }
+      setMessage("Combo saved");
       await refreshCombos();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const saveTimeoutMs = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -298,17 +352,21 @@ export function RPCTestSection() {
           },
         })
       );
-      setMessage(resp?.error?.message ?? "Timeout saved");
+      if (resp?.error) {
+        setMessage(resp.error.message);
+        return;
+      }
+      setMessage("Timeout saved");
       await refreshGlobalSettings();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const saveSlowRelease = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -319,17 +377,21 @@ export function RPCTestSection() {
           },
         })
       );
-      setMessage(resp?.error?.message ?? "Slow release saved");
+      if (resp?.error) {
+        setMessage(resp.error.message);
+        return;
+      }
+      setMessage("Slow release saved");
       await refreshGlobalSettings();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const saveRequirePriorIdleMs = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -340,17 +402,21 @@ export function RPCTestSection() {
           },
         })
       );
-      setMessage(resp?.error?.message ?? "Require prior idle saved");
+      if (resp?.error) {
+        setMessage(resp.error.message);
+        return;
+      }
+      setMessage("Require prior idle saved");
       await refreshGlobalSettings();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const disableCombo = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -358,33 +424,41 @@ export function RPCTestSection() {
           deleteCombo: { index: draft.index, persist: draft.persist },
         })
       );
-      setMessage(resp?.error?.message ?? "Combo disabled");
+      if (resp?.error) {
+        setMessage(resp.error.message);
+        return;
+      }
+      setMessage("Combo disabled");
       await refreshCombos();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const resetCombo = async () => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
         Request.create({ resetCombo: { index: draft.index } })
       );
-      setMessage(resp?.error?.message ?? "Combo reset to default");
+      if (resp?.error) {
+        setMessage(resp.error.message);
+        return;
+      }
+      setMessage("Combo reset to default");
       await refreshCombos();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 
   const applyPendingSettings = async (action: "save" | "discard") => {
-    setIsLoading(true);
+    startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
@@ -405,7 +479,7 @@ export function RPCTestSection() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
-      setIsLoading(false);
+      endRequest();
     }
   };
 

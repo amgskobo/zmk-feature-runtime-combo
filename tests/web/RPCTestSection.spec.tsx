@@ -4,11 +4,11 @@ import {
   ZMKAppProvider,
 } from "@cormoran/zmk-studio-react-hook/testing";
 import { call_rpc } from "@zmkfirmware/zmk-studio-ts-client";
-import { RPCTestSection, SUBSYSTEM_IDENTIFIER } from "../src/App";
+import { RPCTestSection, SUBSYSTEM_IDENTIFIER } from "../../web/src/App";
 import {
   Request,
   Response,
-} from "../src/proto/cormoran/runtime_combo/runtime_combo";
+} from "../../web/src/proto/cormoran/runtime_combo/runtime_combo";
 
 jest.mock("@zmkfirmware/zmk-studio-ts-client", () => ({
   call_rpc: jest.fn(),
@@ -28,7 +28,7 @@ function mockCallRpc(customResponses: {
         custom?: { call: { payload: Uint8Array } };
         keymap?: unknown;
         behaviors?: unknown;
-      }
+      },
     ) => {
       if (req.keymap) {
         return {
@@ -49,7 +49,7 @@ function mockCallRpc(customResponses: {
                 payload: Response.encode(
                   Response.create({
                     listCombos: customResponses.listCombos,
-                  })
+                  }),
                 ).finish(),
               },
             },
@@ -62,7 +62,7 @@ function mockCallRpc(customResponses: {
                 payload: Response.encode(
                   Response.create({
                     getGlobalSettings: customResponses.getGlobalSettings,
-                  })
+                  }),
                 ).finish(),
               },
             },
@@ -70,7 +70,7 @@ function mockCallRpc(customResponses: {
         }
       }
       return undefined;
-    }
+    },
   );
 }
 
@@ -93,14 +93,14 @@ describe("RPCTestSection Component", () => {
       render(
         <ZMKAppProvider value={mockZMKApp}>
           <RPCTestSection />
-        </ZMKAppProvider>
+        </ZMKAppProvider>,
       );
 
       expect(
-        screen.getByRole("heading", { name: /Runtime Combos/i })
+        screen.getByRole("heading", { name: /Runtime Combos/i }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("heading", { name: /Combo Editor/i })
+        screen.getByRole("heading", { name: /Combo Editor/i }),
       ).toBeInTheDocument();
       expect(screen.getByText(/^Positions:/i)).toBeInTheDocument();
       expect(screen.getByText(/Save Combo/i)).toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("RPCTestSection Component", () => {
       render(
         <ZMKAppProvider value={mockZMKApp}>
           <RPCTestSection />
-        </ZMKAppProvider>
+        </ZMKAppProvider>,
       );
 
       expect(screen.getByText(/^Positions:\s*0 \+ 1/i)).toBeInTheDocument();
@@ -138,7 +138,7 @@ describe("RPCTestSection Component", () => {
       render(
         <ZMKAppProvider value={mockZMKApp}>
           <RPCTestSection />
-        </ZMKAppProvider>
+        </ZMKAppProvider>,
       );
 
       await waitFor(() => {
@@ -157,16 +157,16 @@ describe("RPCTestSection Component", () => {
       render(
         <ZMKAppProvider value={mockZMKApp}>
           <RPCTestSection />
-        </ZMKAppProvider>
+        </ZMKAppProvider>,
       );
 
       expect(
-        screen.getByText(/Subsystem "cormoran__runtime_combo" not found/i)
+        screen.getByText(/Subsystem "cormoran__runtime_combo" not found/i),
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          /Make sure your firmware includes the runtime combo module/i
-        )
+          /Make sure your firmware includes the runtime combo module/i,
+        ),
       ).toBeInTheDocument();
     });
   });

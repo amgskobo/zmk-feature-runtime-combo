@@ -13,33 +13,38 @@ export type BehaviorOption = { id: number; displayName: string };
 export function usePhysicalLayoutKeys(
   connection: RpcConnection | null | undefined
 ): KeyPhysicalAttrs[] | null {
-  const [keys, setKeys] = useState<KeyPhysicalAttrs[] | null>(null);
+  const [result, setResult] = useState<{
+    connection: RpcConnection;
+    keys: KeyPhysicalAttrs[] | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!connection) {
       return undefined;
     }
     let cancelled = false;
-    void Promise.resolve(
-      call_rpc(connection, { keymap: { getPhysicalLayouts: true } })
-    ).then(
-      (resp) => {
-        if (cancelled) return;
-        const layouts = resp?.keymap?.getPhysicalLayouts;
-        if (!layouts) return;
-        const layout = layouts.layouts[layouts.activeLayoutIndex];
-        setKeys(layout?.keys ?? null);
-      },
-      () => {
-        if (!cancelled) setKeys(null);
-      }
-    );
+    void Promise.resolve()
+      .then(() =>
+        call_rpc(connection, { keymap: { getPhysicalLayouts: true } })
+      )
+      .then(
+        (resp) => {
+          if (cancelled) return;
+          const layouts = resp?.keymap?.getPhysicalLayouts;
+          if (!layouts) return;
+          const layout = layouts.layouts[layouts.activeLayoutIndex];
+          setResult({ connection, keys: layout?.keys ?? null });
+        },
+        () => {
+          if (!cancelled) setResult({ connection, keys: null });
+        }
+      );
     return () => {
       cancelled = true;
     };
   }, [connection]);
 
-  return connection ? keys : null;
+  return result && result.connection === connection ? result.keys : null;
 }
 
 /**
@@ -50,7 +55,10 @@ export function usePhysicalLayoutKeys(
 export function useBehaviorOptions(
   connection: RpcConnection | null | undefined
 ): BehaviorOption[] | null {
-  const [options, setOptions] = useState<BehaviorOption[] | null>(null);
+  const [result, setResult] = useState<{
+    connection: RpcConnection;
+    options: BehaviorOption[] | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!connection) {
@@ -61,6 +69,7 @@ export function useBehaviorOptions(
       const listResp = await call_rpc(connection, {
         behaviors: { listAllBehaviors: true },
       });
+      if (cancelled) return;
       const ids = listResp?.behaviors?.listAllBehaviors?.behaviors ?? [];
       const details = await Promise.all(
         ids.map((id) =>
@@ -77,14 +86,14 @@ export function useBehaviorOptions(
         }))
         .filter((option) => option.displayName)
         .sort((a, b) => a.displayName.localeCompare(b.displayName));
-      setOptions(resolved);
+      setResult({ connection, options: resolved });
     })().catch(() => {
-      if (!cancelled) setOptions(null);
+      if (!cancelled) setResult({ connection, options: null });
     });
     return () => {
       cancelled = true;
     };
   }, [connection]);
 
-  return connection ? options : null;
+  return result && result.connection === connection ? result.options : null;
 }

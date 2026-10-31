@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { setupZMKMocks } from "@cormoran/zmk-studio-react-hook/testing";
-import App from "../src/App";
+import App from "../../web/src/App";
 
 // Mock the ZMK client
 jest.mock("@zmkfirmware/zmk-studio-ts-client", () => ({
@@ -20,7 +20,7 @@ describe("App Component", () => {
 
       expect(screen.getByText(/Runtime Combo/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/runtime configurable ZMK combos/i)
+        screen.getByText(/runtime configurable ZMK combos/i),
       ).toBeInTheDocument();
     });
 
@@ -58,13 +58,13 @@ describe("App Component", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Connected to: Test Keyboard/i)
+          screen.getByText(/Connected to: Test Keyboard/i),
         ).toBeInTheDocument();
       });
 
       expect(screen.getByText(/Disconnect/i)).toBeInTheDocument();
       expect(
-        screen.getByRole("heading", { name: /Runtime Combos/i })
+        screen.getByRole("heading", { name: /Runtime Combos/i }),
       ).toBeInTheDocument();
     });
   });
