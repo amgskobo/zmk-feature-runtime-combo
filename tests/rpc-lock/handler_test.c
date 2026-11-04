@@ -154,6 +154,35 @@ static void call(pb_size_t tag) {
     assert(runtime_combo_rpc_handle_request(&raw, &callback));
 }
 
+static void name_codec_bounds(void) {
+    const size_t lengths[] = {63, 64, 63, 66};
+    for (size_t i = 0; i < ARRAY_SIZE(lengths); i++) {
+        zmk_custom_CallRequest raw = {0};
+        /* A Web-style length-delimited name, including names the bounded
+         * nanopb C request cannot represent. The latter must fail decoding
+         * before the controlled name writer sees any mutation. */
+        raw.payload.bytes[0] = (cormoran_runtime_combo_Request_set_combo_name_tag << 3) | 2;
+        raw.payload.bytes[1] = lengths[i] + 2;
+        raw.payload.bytes[2] = 0x12;
+        raw.payload.bytes[3] = lengths[i];
+        const uint8_t utf8[] = {0xE7, 0x95, 0x8C};
+        for (size_t j = 0; j < lengths[i]; j++) {
+            raw.payload.bytes[4 + j] = i < 2 ? 'x' : utf8[j % sizeof(utf8)];
+        }
+        raw.payload.size = lengths[i] + 4;
+        unsigned before = mutations;
+        pb_callback_t callback = {0};
+        assert(runtime_combo_rpc_handle_request(&raw, &callback));
+        if (lengths[i] == ZMK_RUNTIME_COMBO_NAME_MAX_BYTES) {
+            assert(response.which_response_type == cormoran_runtime_combo_Response_status_tag);
+            assert(mutations == before + 1);
+        } else {
+            assert(response.which_response_type == cormoran_runtime_combo_Response_error_tag);
+            assert(mutations == before);
+        }
+    }
+}
+
 int main(void) {
     const pb_size_t changes[] = {
         cormoran_runtime_combo_Request_set_combo_tag,
@@ -203,6 +232,7 @@ int main(void) {
     call(cormoran_runtime_combo_Request_discard_tag);
     assert(response.which_response_type == cormoran_runtime_combo_Response_status_tag);
     assert(mutations > before);
+    name_codec_bounds();
 
     (void)runtime_combo_meta;
     printf("runtime combo rpc lock: PASS variant=%s changes=%zu\n", TEST_VARIANT,

@@ -20,6 +20,8 @@ import { usePhysicalLayoutKeys, useBehaviorOptions } from "./useStudioCore";
 import { PositionPicker, BehaviorSelect } from "./StudioCore";
 
 export const SUBSYSTEM_IDENTIFIER = "cormoran__runtime_combo";
+// nanopb's max_size 64 includes the terminating NUL.
+const COMBO_NAME_MAX_BYTES = 63;
 
 type ComboDraft = {
   index: number;
@@ -182,8 +184,8 @@ function RuntimeComboSession() {
     [connection, subsystemIndex]
   );
 
-  const refreshCombos = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) return;
+  const refreshCombos = useCallback(async (): Promise<boolean> => {
+    if (!connection || subsystemIndex === undefined) return false;
     const ticket = ++lifetime.current.combos;
     startRequest();
     setMessage(null);
@@ -191,9 +193,10 @@ function RuntimeComboSession() {
       const resp = await callRuntimeComboRPC(
         Request.create({ listCombos: {} })
       );
-      if (ticket !== lifetime.current.combos) return;
+      if (ticket !== lifetime.current.combos) return false;
       if (resp?.listCombos) {
         setCombos(resp.listCombos.combos);
+        return true;
       } else if (resp?.error) {
         setMessage(resp.error.message);
       }
@@ -202,6 +205,7 @@ function RuntimeComboSession() {
     } finally {
       endRequest();
     }
+    return false;
   }, [
     callRuntimeComboRPC,
     connection,
@@ -292,6 +296,10 @@ function RuntimeComboSession() {
   };
 
   const saveCombo = async () => {
+    if (new TextEncoder().encode(draft.name).length > COMBO_NAME_MAX_BYTES) {
+      setMessage(`Name must fit in ${COMBO_NAME_MAX_BYTES} UTF-8 bytes`);
+      return;
+    }
     startRequest();
     setMessage(null);
     try {
@@ -331,8 +339,7 @@ function RuntimeComboSession() {
         setMessage(nameResp.error.message);
         return;
       }
-      setMessage("Combo saved");
-      await refreshCombos();
+      if (await refreshCombos()) setMessage("Combo saved");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -663,7 +670,7 @@ function RuntimeComboSession() {
             Name
             <input
               value={draft.name}
-              maxLength={64}
+              maxLength={COMBO_NAME_MAX_BYTES}
               onChange={(event) =>
                 setDraft({ ...draft, name: event.target.value })
               }

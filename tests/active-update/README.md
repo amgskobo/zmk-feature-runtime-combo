@@ -41,16 +41,98 @@ C-up; B stayed held. The original source failed identically in three runs.
 
 A Studio edit only marks its slot (or the global settings) stale; the next key
 event rebuilds what is stale on the matching thread. The end of the boot load
-and every custom settings change event of this subsystem mark everything
-stale. Each of these is needed: dropping the end-of-load or change-event mark,
+marks everything stale; change events mark the affected body/binding slot or
+global state. Display names do not invalidate matching state. Each of these
+is needed: dropping the end-of-load or matching change-event mark,
 the explicit mark of a combo write, a reset or a global setting write (only
 these cover a write whose persistence fails, which raises no change event),
 skipping the rebuild, or firing a held-back combo from its edited slot fails
 this test. The groups that check a load, a failed global write or a foreign
 write use the read-only default combo, so no write of their own marks the
-cache. The test runs on one thread, so it does not race a write against a key
-event.
+cache. These original groups run on one thread.
 
-This regression covers active combo lifetime. Of pending candidates it covers
-only a held-back combo whose slot is disabled meanwhile; it does not establish
-physical USB/BLE delivery, split timing or transport congestion behavior.
+The original twelve active-lifetime groups remain unchanged. Ten additional
+pending groups exercise layer and prior-idle eligibility (including completion
+after the idle interval), an excluded-slot control, early/late superset
+completion, subset expiry and an unrelated key, and moving a pending deadline
+later when the shortest candidate is filtered out. The timer control starts
+with that shortest candidate disabled. Positions and timeout callbacks use the
+actual system work queue; every group checks HID state and final release. The
+canonical runner requires both complete group markers in all three runs.
+`COMBO_PENDING_CASE` selects one named pending group only for a focused control;
+it cannot satisfy the canonical complete-run admission.
+
+Nine review groups retain independent physical positions with distinct ordinary
+keycodes, so a late press cannot hide behind another key's identical HID usage.
+They cover `replay-release`, `replay-unrelated`, `replay-control`,
+`name-same-slot`, `name-other-slot`, `full-active-table`, `paired-update`,
+`stored-binding` and `name-bounds`. The paired-update group pauses the real
+writer in its body-change event, after the registry guard is released and before
+the binding write. A second thread reads the pair while system-queue key events
+continue against the previous cache; after the writer completes, both the reader
+and the next activation must use the complete new pair. The stored-binding group
+uses the real settings loader with layer parameters 2, 256, 257 and UINT32_MAX,
+plus a valid layer-1 record, and verifies actual layer state and releases. The
+record uses the registry's packed local-ID/uint32/uint32 storage format. A raw
+registry read must return the exact injected ID and full-width parameters before
+the combo reader validates them. The first invalid value2 is below the fixture's
+34-position count but outside its two-layer domain. Each case also checks direct
+module-write refusal without changing the preceding valid layer-1 binding.
+
+`COMBO_REVIEW_CASE` selects one review group for before-source controls. Restore
+the production source from the pre-repair working snapshot while retaining these
+fixtures, current public declarations and metadata configuration. Replay groups,
+name groups, full-table, paired-update, stored-binding and name-bounds must fail
+their corresponding assertions before the repair; `replay-control` remains a
+positive control. Run each selected binary three times from fresh state. Focused
+selection cannot replace the complete canonical markers.
+
+Two further groups retain the ordinary 2048-byte system workqueue stack and
+the configured maximum of16 positions. `replay-max` resolves15 pending keys
+from a16-position candidate and verifies every downstream keycode press/release
+pair, first-accepted HID state and final clearing. `replay-reentrant` raises15
+new physical-position events synchronously from the first replayed E keycode.
+Those events qualify for another16-position candidate. They must not overwrite
+the immutable original tail or lose a press/release during nested replay. The
+first modifier press also releases a separately held combo, checking its original
+binding's releases during nested dispatch. Repeated modifier usages deliberately
+test counts at the keycode boundary without exceeding the fixture's original
+HID rollover limit. The original distinct E/F/G assertions remain. The canonical
+runner additionally requires `runtime combo replay: PASS groups=2` in every run.
+
+The production implementation copies the pending presses or unused tail into
+a local array before synchronous dispatch. Each snapshot is bounded by the
+configured maximum positions. New candidates may reuse the mutable pending
+array without replacing a local replay tail. The generation counter retains
+the triggering input's decision to revisit the listener chain after replay;
+upstream listeners and active-combo releases retain their ordinary ordering.
+The complete fixture keeps the ordinary 2048-byte system workqueue stack and
+checks both the maximum-length and reentrant cases without a separate replay
+queue or overload policy.
+
+For the mutable-tail negative control, invoke the unchanged helper from a
+read-only owner source against a distinct disposable container staging copy:
+
+```sh
+python3 "$OWNER_SOURCE/tests/active-update/apply_replay_fault.py" "$STAGED_OWNER"
+```
+
+Build that copy once and run `COMBO_REVIEW_CASE=replay-reentrant` three times
+with fresh initial state. Require a failure of the immutable-tail, press-before-
+release or accepted-event assertion in each run. Compilation errors, unrelated
+failures, crashes and timeouts do not establish detection. The helper replaces
+only the immutable local copy with an alias of `pending_keys`, retaining the
+actual generation logic. E-triggered positions can then overwrite the unprocessed
+tail. It does not alter an assertion or the configured workqueue stack.
+
+The fixture's matrix and both keymap layers cover all34 positions. Compile-time
+and runtime bounds checks reject a test position outside that matrix. Earlier
+out-of-range fixture events caused invalid keymap access; those crashes do not
+establish a production replay or stack defect. The corrected fixture preserves
+the original positions0..3 and every original group/assertion. Its maximum and
+reentrant checks apply equally to the simple local-snapshot implementation;
+they do not require a continuation pump. New complete runs and an executable
+mutable-tail counterexample remain required for the final source snapshot.
+
+These regressions do not establish physical USB/BLE delivery, split timing or
+transport congestion behavior.

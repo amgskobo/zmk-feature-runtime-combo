@@ -19,6 +19,8 @@
 #define ZMK_RUNTIME_COMBO_TIMEOUT_MS_KEY "timeout_ms"
 #define ZMK_RUNTIME_COMBO_SLOW_RELEASE_KEY "slow_release"
 #define ZMK_RUNTIME_COMBO_REQUIRE_PRIOR_IDLE_MS_KEY "require_prior_idle_ms"
+/* proto runtime_combo.options: max_size 64 includes the terminating NUL. */
+#define ZMK_RUNTIME_COMBO_NAME_MAX_BYTES 63
 
 /* Tri-state override for the global slow-release setting. */
 enum zmk_runtime_combo_slow_release_override {
@@ -78,7 +80,8 @@ int zmk_runtime_combo_reset(uint32_t index);
 
 /* Mark the decoded-combo cache of the key-event path stale; the next key
  * event rebuilds it from settings. This module's writers, the end of the boot
- * settings load and every custom settings change event of this subsystem
- * already do so; call it only after a change that raises none of these.
+ * settings load and matching body/binding/global setting change events
+ * already do so; display-name changes do not affect the matcher.
+ * Call it only after a matching change that raises none of these.
  * Safe from any thread. */
 void zmk_runtime_combo_invalidate_cache(void);

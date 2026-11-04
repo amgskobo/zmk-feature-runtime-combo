@@ -7,6 +7,28 @@ This repository owns its executable test logic and fixtures under `tests/`.
 This owner supports DYA custom Studio RPC. Stock ZMK is NOT APPLICABLE;
 no feature-disabled stock check is required or counted as compatibility.
 
+`tests/active-update/` retains all twelve held-combo update groups and adds ten
+actual-kernel pending groups. Layer and first-press prior-idle admission must
+remain valid at completion; eliminating a short candidate must move the real
+timer to the surviving deadline; a completed subset waits while a longer combo
+is viable. Early/late completion, timeout fallback, unrelated-key replay and
+disabled-slot timer controls retain complete key releases. See its owner guide
+for the controlled storage boundary and three identical-binary repetitions.
+
+Nine further active-update groups cover failed-candidate press/release and
+unrelated-key replay, a completed-candidate control, same/other-slot display
+renames, full active-table fallback, a paused paired writer with a concurrent
+reader and continuing system-queue input, malformed stored binding parameters,
+and exact name bounds. All original groups and their markers remain required.
+The stored-binding group confirms the registry's exact decoded record before
+use, checks the full-width layer domain independently of key-position count,
+and retains direct-write refusal and valid layer-1 controls. Two further groups
+exercise maximum-length and synchronous reentrant replay against immutable
+local snapshots on the ordinary system workqueue stack.
+The RPC codec fixture also checks 63-byte accepted and oversized rejected
+ASCII/UTF-8 names; `tests/web/nameBounds.spec.tsx` verifies refusal before the
+first mutation and exact accepted name payloads.
+
 Canonical entries (run from the repository root):
 
 ```bash

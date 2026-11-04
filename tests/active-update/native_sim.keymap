@@ -14,7 +14,24 @@
     };
     keymap {
         compatible = "zmk,keymap";
-        default_layer { bindings = <&kp A &kp A &kp A &kp A>; };
+        default_layer {
+            bindings = <&kp A &kp A &kp A &kp A &kp E &kp F &kp G &kp H
+                        &kp I &kp J &kp K &kp L &kp M &kp N &kp O &kp P &kp Q &mo 1
+                        &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT
+                        &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT &kp LSHFT>;
+        };
+        alternate_layer {
+            bindings = <&trans &trans &trans &trans &trans &trans &trans &trans
+                        &trans &trans &trans &trans &trans &trans &trans &trans &trans &trans
+                        &trans &trans &trans &trans &trans &trans &trans &trans
+                        &trans &trans &trans &trans &trans &trans &trans &trans>;
+        };
     };
 };
-&kscan { events = <ZMK_MOCK_PRESS(1,1,10) ZMK_MOCK_RELEASE(1,1,30000)>; };
+&kscan {
+    /* Keep the original two columns: (1,1) is still position3. Extend rows
+     * so every binding and reentrant test position belongs to the matrix. */
+    rows = <17>;
+    columns = <2>;
+    events = <ZMK_MOCK_PRESS(1,1,10) ZMK_MOCK_RELEASE(1,1,30000)>;
+};

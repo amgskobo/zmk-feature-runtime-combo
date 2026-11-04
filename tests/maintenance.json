@@ -27,6 +27,23 @@
   },
   "regression_fixtures": [
     {
+      "fixture": "tests/active-update/run.sh (canonical test_active_updates)",
+      "contract": "All12 held-update groups plus10 pending,9 review and2 replay groups on actual ZMK events/HID and Zephyr work queue/timers; three identical-binary runs. Preserve eligibility/deadline controls and complete releases; immutable local replay snapshots, maximum pending length, reentrant keycode-to-position dispatch and active releases, name-only independence, full-table fallback, paired reader/writer interleaving, exact loaded binding records/full-width available layer IDs/direct-write refusal and byte name bounds.",
+      "negative_control": "Original production fails the same layer/idle/timer-retime/overlap-late assertions; focused selection cannot replace complete canonical group markers.",
+      "limits": "Controlled storage, no physical HID/BLE/split/flash acceptance."
+    },
+    {
+      "fixture": "tests/active-update/apply_replay_fault.py; COMBO_REVIEW_CASE=replay-reentrant",
+      "contract": "The helper replaces only an immutable local replay snapshot with a pending-array alias in a distinct disposable container copy, retaining generation logic. Mutable pending-tail dispatch must fail an immutable-tail, press-before-release or accepted-event assertion3/3 on the ordinary2048-byte system workqueue. Compile errors/crashes/timeouts do not count.",
+      "limits": "Earlier out-of-range fixture events caused invalid keymap access and do not establish a production replay/stack defect. The corrected34-position fixture preserves positions0..3, all original groups, and max/reentrant assertions; final complete runs and an executable fault remain required."
+    },
+    {
+      "fixture": "tests/web/nameBounds.spec.tsx and tests/rpc-lock/handler_test.c",
+      "contract": "UTF-8 byte limits are checked before the first save mutation; exact accepted ASCII/multibyte names remain intact. Actual nanopb decoding accepts63bytes and rejects oversized names without mutation in optimized/sanitized variants.",
+      "negative_control": "The pre-repair Web editor dispatches the body mutation for oversized names; its unchanged UI boundary assertions must fail.",
+      "limits": "Controlled Web/RPC boundary and real codec, not physical browser delivery or persistence."
+    },
+    {
       "fixture": "tests/dt-defaults/run.py (canonical test_dt_defaults_validation)",
       "contract": "Actual production DTS/CMake/generated headers/runtime_combo.c object compile: every raw position<=65535 and layer<=31 checked before narrowing/shift, both timer overrides<=65535, inherited zero/omitted and valid upper boundaries retained. First/middle/last invalid cells, uint32 max, slot/count bounds and exact diagnostics covered in23cases.",
       "negative_control": "Before-repair source compiles16invalid position/layer/timer cases; same owner assertions report16failures of23 while existing slot/count controls pass. Warnings do not count as refusal.",

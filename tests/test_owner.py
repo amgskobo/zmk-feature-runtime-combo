@@ -172,6 +172,7 @@ class WestCommandsTests(unittest.TestCase):
                         "CONFIG_ZMK_STUDIO=y",
                         "CONFIG_ZMK_RUNTIME_COMBO=y",
                         "CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC=y",
+                        "CONFIG_ZMK_BEHAVIOR_METADATA=y",
                         "CONFIG_ZMK_CUSTOM_SETTINGS=y",
                         "CONFIG_ZMK_CUSTOM_SETTINGS_STUDIO_RPC=y",
                     ],
@@ -181,6 +182,7 @@ class WestCommandsTests(unittest.TestCase):
                     config=[
                         "CONFIG_ZMK_RUNTIME_COMBO=y",
                         "# CONFIG_ZMK_STUDIO is not set",
+                        "CONFIG_ZMK_BEHAVIOR_METADATA=y",
                         NotFound("CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC"),
                     ],
                     device=[],
@@ -192,6 +194,7 @@ class WestCommandsTests(unittest.TestCase):
                         "CONFIG_ZMK_STUDIO=y",
                         "CONFIG_ZMK_RUNTIME_COMBO=y",
                         "CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC=y",
+                        "CONFIG_ZMK_BEHAVIOR_METADATA=y",
                         "CONFIG_ZMK_CUSTOM_SETTINGS=y",
                         "CONFIG_ZMK_CUSTOM_SETTINGS_STUDIO_RPC=y",
                         "CONFIG_ZMK_STUDIO_RPC_RX_BUF_SIZE=128",

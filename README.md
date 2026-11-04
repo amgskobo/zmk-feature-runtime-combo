@@ -9,7 +9,7 @@ Keep the module's documented imports enabled where required. The original
 upstream installation examples below describe the upstream repository.
 
 The dependency manifests select the available Custom Settings revision
-`b91a8ceb0a57a0cf41b34270752d79463e2848fa` from its reviewed fork;
+`c4071b095c3007d1deb055c609603ca9b5897d14` from its reviewed fork;
 production imports and isolated tests use the same registry implementation.
 
 ![ZMK Version](https://img.shields.io/badge/ZMK-master-blue)
@@ -76,6 +76,23 @@ validated against the target behavior's parameter metadata on write and exported
 as a first-class behavior binding rather than opaque bytes. The name is likewise
 saved as a string-array custom setting with the same index.
 
+The module reads and applies a combo's body and binding as one operation.
+Key events continue with the previous complete cached configuration while a
+module edit or persistence operation is running. Generic Custom Settings
+operations on individual arrays remain independent edits; clients needing a
+paired body/binding change should use the runtime-combo operation. Stored
+binding parameters are validated again before matching, including their full
+width before a behavior can narrow them. Runtime Combo enables behavior
+metadata for this validation. Layer-typed parameters must name a currently
+available stable layer ID; the module checks this domain itself because the
+selected core's metadata validator uses the key-position count as its bound.
+Other parameter types retain the core's metadata validation.
+
+Display-name changes leave pending combos intact. Names accept at most 63
+UTF-8 bytes, matching the RPC string capacity; the Web editor checks this
+before sending either the body or name mutation. This is a byte limit, so
+multibyte names can reach it with fewer characters.
+
 Timeout, slow-release, and require-prior-idle mode are saved as separate global
 custom settings and apply to every runtime combo unless overridden. The global
 settings RPC response also reports `max_combo`, the maximum number of combo
@@ -138,6 +155,22 @@ the timeout expires, or one of the pressed keys is released. Whichever combo
 ends up firing always uses only its own positions; any positions pressed while
 waiting on a longer candidate are replayed as normal key presses if that
 candidate never completes.
+
+If the active-combo table is full, an unactivated candidate replays every
+captured key as ordinary input. Replayed presses and their releases retain
+their order even when a replayed press starts another candidate.
+
+Before replay dispatch, the pending presses or unused tail are copied into a
+bounded local array. Reentrant position events can start another candidate
+without overwriting that snapshot. A replay generation records when multiple
+presses reenter matching, so the triggering release or unrelated press is
+processed after them with the updated pending state. Replay preserves the core's
+synchronous listener ordering and normal active-combo releases.
+
+Each candidate keeps its own timeout window. Expiring a shorter window does
+not end the wait for a longer candidate whose window is still open. If another
+press eliminates the earliest candidate, the timer moves to the next surviving
+deadline; held keys replay at that deadline even without another input.
 
 ## User Guide
 

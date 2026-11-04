@@ -4,6 +4,7 @@ config ZMK_RUNTIME_COMBO
     select SETTINGS
     select ZMK_CUSTOM_SETTINGS
     select ZMK_BEHAVIOR_LOCAL_IDS
+    select ZMK_BEHAVIOR_METADATA
     help
       Enable combos that can be changed at runtime through the custom Studio RPC
       subsystem. Like ZMK's own combos they resolve on the central, which
