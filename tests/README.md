@@ -58,8 +58,8 @@ duplicated test algorithms.
 
 The native verifier runs each built binary three times in independent empty
 initial-flash directories, retaining raw output before filtering. It checks real
-process exits, fatal assertions and every linked checked-init result before
-comparing unchanged owner snapshots. A SYS_INIT error cannot be hidden by a
+process exits, sanitizer report syntax, fatal assertions and every linked
+checked-init result before comparing unchanged owner snapshots. A SYS_INIT error cannot be hidden by a
 later matching key trace. Native scheduling and controlled APIs still do not
 establish physical transport/retention. Test-only core/tool dependencies are
 pinned; update pins only after reviewing the new sources and rerunning this
@@ -147,10 +147,25 @@ reject missing configuration when both the request and build omit it; excluded
 roles cannot replace the requested role. The verifier retains all three raw
 runs before comparing unchanged ordered snapshots and rejects logged failures,
 fatal output and missing/nonzero completions. `tests/test_native_verifier.py`
-owns eleven real-ELF admission controls, including a deliberately missing
-native scenario, wrong-role and unrelated-fixture controls.
+owns nineteen real-ELF admission controls, including a deliberately missing
+native scenario, wrong-role and unrelated-fixture controls. Recovering ASan
+reports on stdout and UBSan reports on stderr must fail even with process exit0,
+successful checked initialization and a matching event trace. Clean instrumented
+programs and location-less configuration/error labels remain valid controls.
+`NATIVE_VERIFIER_CONTROL_OUTPUT=/absolute/new/directory` retains the synthetic
+source, binary and raw runs under a fresh directory for each test method.
 
-`bash tests/run-web.sh` is the canonical schema-generation/Web test entry.
+The active-update runner uses the same sanitizer report check in addition to its
+exit and complete12/10/9/2 group-marker checks. On the selected DYA core,
+`kscan_mock.c:103` reports a signed `1 << 31`; a recovering run can still finish
+all33 groups and match snapshots. Such a run remains BLOCKED for sanitizer-clean
+acceptance. A strict run must use explicit compiler recovery flags, including
+the separate native simulator Make build; `CONFIG_ASAN_RECOVER=n` alone does not
+establish UBSan strictness. Retain actual compiler invocations, objects and raw
+logs. No dependency patch or feature removal is an acceptance substitute.
+
+Prepare generated Web types with `cd web && npm run generate` using the local
+locked plugin. `bash tests/run-web.sh` is the canonical Web test entry.
 It runs all configured Jest scenarios in one worker process. The pre-commit
 Jest hook dispatches this same owner entry so nested workers do not multiply
 the global container budget. Build and lint retain their separate package entries.
@@ -170,3 +185,28 @@ creates an independent editor; retired saves cannot dispatch a name write or
 refresh. Core behavior lists stop before detail dispatch when retired. Original
 scenarios remain selected. These controlled boundaries do not cancel a device
 operation already sent or establish physical browser transport acceptance.
+
+`tests/web/responseBoundary.spec.tsx` exercises the actual generated Combo codec,
+provider and editor with controlled transport replies. Missing/zero-byte,
+unknown, wrong-operation, mixed success/error and absent settings submessages
+must not advance mutations, erase the catalog, replace metadata or hide a blank
+error. Both body and name writes need a status acknowledgement. All seven other
+mutation buttons retain that same admission boundary. Explicit empty catalogs,
+default-valued status, malformed-codec refusal and nonempty server errors remain
+independent controls. Each of the three global saves preserves the other unsent
+fields and persistence choice, with exact requested values; edits during the
+initial read or an earlier write remain visible. The original App is the named
+before-source control for these same assertions. Save/Discard Pending also retain
+edits made while their mutation acknowledgements are pending; a zero affected
+count is a valid status. No firmware source, wire field,
+held/pending/replay group, snapshot or existing Web scenario is replaced.
+
+The SDK console audit reads the installed packages' shipped JavaScript, separately
+from SDK source or prebuilt declaration files. Its negative control is
+`python3 tests/web/add_sdk_console_control.py /absolute/disposable/owner-copy`.
+Prepare that copy with the same locked installed dependencies, then run
+`bash tests/run-web.sh --runTestsByPath ../tests/web/sdkConsole.spec.ts` there.
+The dormant added site must fail the exact reviewed-sites assertion; setup,
+runtime or unrelated test failures do not qualify. The unchanged real SDK is
+the positive control. This audit is an existing test boundary, not a Vite build
+transform or a new production interface.

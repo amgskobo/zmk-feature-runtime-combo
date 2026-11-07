@@ -1,19 +1,28 @@
 """Use real synthetic ELF programs to check native-result admission."""
 
 import json
+import os
+import hashlib
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
+from unittest.mock import patch
 
 from native_verifier import verify_native
 
 
 class NativeVerifierContract(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        retained = os.environ.get("NATIVE_VERIFIER_CONTROL_OUTPUT")
+        if retained:
+            self.root = Path(retained).resolve() / self._testMethodName
+            self.root.mkdir(parents=True, exist_ok=False)
+        else:
+            self.temp = tempfile.TemporaryDirectory()
+            self.addCleanup(self.temp.cleanup)
+            self.root = Path(self.temp.name)
         self.tests = self.root / "fixtures"
         fixture = self.tests / "case"
         fixture.mkdir(parents=True)
@@ -33,10 +42,19 @@ class NativeVerifierContract(unittest.TestCase):
         self.binary = binary_dir / "zmk.exe"
 
     def compile(
-        self, *, hook=True, reported=0, process_exit=0, fatal=False, failed_log=False
+        self,
+        *,
+        hook=True,
+        reported=0,
+        process_exit=0,
+        fatal=False,
+        failed_log=False,
+        sanitizer=None,
+        fault=False,
+        labels=False,
     ):
         source = self.root / "program.c"
-        body = "#include <stdio.h>\n"
+        body = "#include <stdio.h>\n#include <stdlib.h>\n#include <limits.h>\n"
         if hook:
             body += (
                 "int owner_checked_control(void) { "
@@ -49,6 +67,19 @@ class NativeVerifierContract(unittest.TestCase):
             body += 'puts("ASSERTION FAIL"); '
         if failed_log:
             body += 'puts("<err> owner: FAIL: controlled assertion"); '
+        if labels:
+            body += 'puts("CONFIG_ASAN=y; AddressSanitizer instrumentation"); '
+            body += 'puts("runtime error: label for a synthetic setting"); '
+        flags = []
+        if sanitizer == "address":
+            flags = ["-fsanitize=address", "-fsanitize-recover=address"]
+            body += "volatile int *value = malloc(sizeof(*value)); "
+            body += f"volatile int index = {1 if fault else 0}; value[index] = 7; "
+            body += "free((void *)value); "
+        elif sanitizer == "undefined":
+            flags = ["-fsanitize=undefined", "-fsanitize-recover=all"]
+            body += f"volatile int value = {('INT_MAX' if fault else '0')}; "
+            body += "value += 1; "
         body += f'puts("EVENT 1"); return {process_exit}; }}\n'
         source.write_text(body)
         subprocess.run(
@@ -58,12 +89,77 @@ class NativeVerifierContract(unittest.TestCase):
                 "-Wall",
                 "-Wextra",
                 "-Werror",
+                "-O1",
+                "-g",
+                "-fno-omit-frame-pointer",
+                "-no-pie",
+                *flags,
                 str(source),
                 "-o",
                 str(self.binary),
             ],
             check=True,
         )
+
+    def recovering_sanitizer(self, sanitizer):
+        self.compile(sanitizer=sanitizer, fault=True)
+        options = {
+            "ASAN_OPTIONS": "detect_leaks=0:halt_on_error=0:log_path=stdout",
+            "UBSAN_OPTIONS": "halt_on_error=0:print_stacktrace=1",
+        }
+        with patch.dict(os.environ, options):
+            started = time.time_ns()
+            result = subprocess.run([str(self.binary)], capture_output=True, text=True)
+            (self.root / "probe-stdout.log").write_text(result.stdout)
+            (self.root / "probe-stderr.log").write_text(result.stderr)
+            (self.root / "probe-command.json").write_text(
+                json.dumps(
+                    {
+                        "argv": [str(self.binary)],
+                        "exit": result.returncode,
+                        "start_ns": started,
+                        "end_ns": time.time_ns(),
+                        "environment": options,
+                        "binary_sha256": hashlib.sha256(
+                            self.binary.read_bytes()
+                        ).hexdigest(),
+                    },
+                    indent=2,
+                )
+                + "\n"
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("OWNER_TEST_RESULT control=0", result.stdout)
+            self.assertIn("EVENT 1", result.stdout)
+            if sanitizer == "address":
+                self.assertIn(
+                    "ERROR: AddressSanitizer: heap-buffer-overflow", result.stdout
+                )
+                self.assertEqual(result.stderr, "")
+            else:
+                self.assertRegex(result.stderr, r"program\.c:\d+:\d+: runtime error:")
+                self.assertNotIn("runtime error:", result.stdout)
+            with self.assertRaisesRegex(AssertionError, "sanitizer diagnostic"):
+                verify_native(self.output, self.tests)
+
+    def test_recovering_asan_stdout_is_not_snapshot_success(self):
+        self.recovering_sanitizer("address")
+
+    def test_recovering_ubsan_stderr_is_not_snapshot_success(self):
+        self.recovering_sanitizer("undefined")
+
+    def test_clean_asan_binary_remains_snapshot_success(self):
+        self.compile(sanitizer="address")
+        with patch.dict(os.environ, {"ASAN_OPTIONS": "detect_leaks=0:halt_on_error=0"}):
+            verify_native(self.output, self.tests)
+
+    def test_clean_ubsan_binary_remains_snapshot_success(self):
+        self.compile(sanitizer="undefined")
+        verify_native(self.output, self.tests)
+
+    def test_sanitizer_configuration_and_locationless_labels_are_not_reports(self):
+        self.compile(labels=True)
+        verify_native(self.output, self.tests)
 
     def test_positive_repeats_preserve_raw_output(self):
         self.compile()

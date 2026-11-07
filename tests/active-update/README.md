@@ -36,6 +36,14 @@ the executable and all three raw logs. With an explicit `ZEPHYR_MODULES`, the
 runner appends only its fixture module. No production feature is disabled to
 clear a production build gate.
 
+Each run also rejects actual sanitizer report syntax, including diagnostics
+from a recovering sanitizer with exit0 and all complete group markers. This
+uses the same `tests/sanitizer_diagnostics.py` admission check as the snapshot
+verifier. Ordinary setting labels that merely mention sanitizers or
+`runtime error:` without a source location are not reports. Selected dependency
+diagnostics remain a separate sanitizer-clean gate even when every owner group
+finishes; they do not authorize dependency edits or dropping required features.
+
 Before the fix, changing a held B binding to C produced B-down followed by
 C-up; B stayed held. The original source failed identically in three runs.
 

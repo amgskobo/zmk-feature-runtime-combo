@@ -48,6 +48,7 @@ type GlobalSettingsDraft = {
   requirePriorIdleMs: number;
   persist: boolean;
 };
+type GlobalField = "timeoutMs" | "slowRelease" | "requirePriorIdleMs";
 
 const emptyDraft: ComboDraft = {
   index: 0,
@@ -151,6 +152,11 @@ function RuntimeComboSession() {
   const connection = zmkApp?.state.connection;
   const subsystemIndex = subsystem?.index;
   const lifetime = useRef({ active: true, pending: 0, combos: 0, settings: 0 });
+  const globalEdits = useRef({
+    timeoutMs: 0,
+    slowRelease: 0,
+    requirePriorIdleMs: 0,
+  });
   useEffect(() => {
     const current = lifetime.current;
     current.active = true;
@@ -170,7 +176,7 @@ function RuntimeComboSession() {
   const behaviorOptions = useBehaviorOptions(connection);
 
   const callRuntimeComboRPC = useCallback(
-    async (request: Request): Promise<Response | null> => {
+    async (request: Request): Promise<Response> => {
       if (!lifetime.current.active) throw new Error("Retired combo request");
       if (!connection || subsystemIndex === undefined)
         throw new Error("Combo subsystem unavailable");
@@ -178,8 +184,30 @@ function RuntimeComboSession() {
       const payload = Request.encode(request).finish();
       const responsePayload = await service.callRPC(payload);
       if (!lifetime.current.active) throw new Error("Retired combo request");
-      if (!responsePayload) throw new Error("Empty combo response");
-      return Response.decode(responsePayload);
+      if (!responsePayload?.length) throw new Error("Empty combo response");
+      const response = Response.decode(responsePayload);
+      const variants = [
+        response.error,
+        response.listCombos,
+        response.getCombo,
+        response.status,
+        response.getGlobalSettings,
+      ].filter((value) => value !== undefined);
+      if (variants.length !== 1)
+        throw new Error("Unexpected Runtime Combo RPC response");
+      if (response.error)
+        throw new Error(
+          response.error.message.trim() || "Runtime Combo RPC request failed"
+        );
+      const expected = request.listCombos
+        ? response.listCombos
+        : request.getCombo
+          ? response.getCombo?.combo
+          : request.getGlobalSettings
+            ? response.getGlobalSettings?.settings
+            : response.status;
+      if (!expected) throw new Error("Unexpected Runtime Combo RPC response");
+      return response;
     },
     [connection, subsystemIndex]
   );
@@ -197,8 +225,6 @@ function RuntimeComboSession() {
       if (resp?.listCombos) {
         setCombos(resp.listCombos.combos);
         return true;
-      } else if (resp?.error) {
-        setMessage(resp.error.message);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
@@ -214,40 +240,51 @@ function RuntimeComboSession() {
     endRequest,
   ]);
 
-  const refreshGlobalSettings = useCallback(async () => {
-    if (!connection || subsystemIndex === undefined) return;
-    const ticket = ++lifetime.current.settings;
-    startRequest();
-    setMessage(null);
-    try {
-      const resp = await callRuntimeComboRPC(
-        Request.create({ getGlobalSettings: {} })
-      );
-      if (ticket !== lifetime.current.settings) return;
-      if (resp?.getGlobalSettings?.settings) {
-        const settings: GlobalSettings = resp.getGlobalSettings.settings;
-        setGlobalSettings({
-          timeoutMs: settings.timeoutMs || 50,
-          slowRelease: settings.slowRelease,
-          maxCombo: settings.maxCombo,
-          requirePriorIdleMs: settings.requirePriorIdleMs,
-          persist: false,
-        });
-      } else if (resp?.error) {
-        setMessage(resp.error.message);
+  const refreshGlobalSettings = useCallback(
+    async (
+      field?: GlobalField,
+      revisions = { ...globalEdits.current }
+    ): Promise<boolean> => {
+      if (!connection || subsystemIndex === undefined) return false;
+      const ticket = ++lifetime.current.settings;
+      startRequest();
+      setMessage(null);
+      try {
+        const resp = await callRuntimeComboRPC(
+          Request.create({ getGlobalSettings: {} })
+        );
+        if (ticket !== lifetime.current.settings) return false;
+        if (resp?.getGlobalSettings?.settings) {
+          const settings: GlobalSettings = resp.getGlobalSettings.settings;
+          // A field save refreshes that field only. An edit made after dispatch
+          // belongs to the next save, including during the initial read.
+          const replace = (key: GlobalField) =>
+            (!field || field === key) &&
+            revisions[key] === globalEdits.current[key];
+          setGlobalSettings((current) => ({
+            ...current,
+            timeoutMs: replace("timeoutMs")
+              ? settings.timeoutMs || 50
+              : current.timeoutMs,
+            slowRelease: replace("slowRelease")
+              ? settings.slowRelease
+              : current.slowRelease,
+            maxCombo: settings.maxCombo,
+            requirePriorIdleMs: replace("requirePriorIdleMs")
+              ? settings.requirePriorIdleMs
+              : current.requirePriorIdleMs,
+          }));
+          return true;
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "RPC failed");
+      } finally {
+        endRequest();
       }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "RPC failed");
-    } finally {
-      endRequest();
-    }
-  }, [
-    callRuntimeComboRPC,
-    connection,
-    subsystemIndex,
-    startRequest,
-    endRequest,
-  ]);
+      return false;
+    },
+    [callRuntimeComboRPC, connection, subsystemIndex, startRequest, endRequest]
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -303,7 +340,7 @@ function RuntimeComboSession() {
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           setCombo: {
             index: draft.index,
@@ -322,11 +359,7 @@ function RuntimeComboSession() {
           },
         })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      const nameResp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           setComboName: {
             index: draft.index,
@@ -335,10 +368,6 @@ function RuntimeComboSession() {
           },
         })
       );
-      if (nameResp?.error) {
-        setMessage(nameResp.error.message);
-        return;
-      }
       if (await refreshCombos()) setMessage("Combo saved");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
@@ -348,10 +377,11 @@ function RuntimeComboSession() {
   };
 
   const saveTimeoutMs = async () => {
+    const revisions = { ...globalEdits.current };
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           setTimeoutMs: {
             timeoutMs: globalSettings.timeoutMs,
@@ -359,12 +389,8 @@ function RuntimeComboSession() {
           },
         })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      setMessage("Timeout saved");
-      await refreshGlobalSettings();
+      if (await refreshGlobalSettings("timeoutMs", revisions))
+        setMessage("Timeout saved");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -373,10 +399,11 @@ function RuntimeComboSession() {
   };
 
   const saveSlowRelease = async () => {
+    const revisions = { ...globalEdits.current };
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           setSlowRelease: {
             slowRelease: globalSettings.slowRelease,
@@ -384,12 +411,8 @@ function RuntimeComboSession() {
           },
         })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      setMessage("Slow release saved");
-      await refreshGlobalSettings();
+      if (await refreshGlobalSettings("slowRelease", revisions))
+        setMessage("Slow release saved");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -398,10 +421,11 @@ function RuntimeComboSession() {
   };
 
   const saveRequirePriorIdleMs = async () => {
+    const revisions = { ...globalEdits.current };
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           setRequirePriorIdleMs: {
             requirePriorIdleMs: globalSettings.requirePriorIdleMs,
@@ -409,12 +433,8 @@ function RuntimeComboSession() {
           },
         })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      setMessage("Require prior idle saved");
-      await refreshGlobalSettings();
+      if (await refreshGlobalSettings("requirePriorIdleMs", revisions))
+        setMessage("Require prior idle saved");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -426,17 +446,12 @@ function RuntimeComboSession() {
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({
           deleteCombo: { index: draft.index, persist: draft.persist },
         })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      setMessage("Combo disabled");
-      await refreshCombos();
+      if (await refreshCombos()) setMessage("Combo disabled");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -448,15 +463,10 @@ function RuntimeComboSession() {
     startRequest();
     setMessage(null);
     try {
-      const resp = await callRuntimeComboRPC(
+      await callRuntimeComboRPC(
         Request.create({ resetCombo: { index: draft.index } })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
-      setMessage("Combo reset to default");
-      await refreshCombos();
+      if (await refreshCombos()) setMessage("Combo reset to default");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
@@ -465,29 +475,37 @@ function RuntimeComboSession() {
   };
 
   const applyPendingSettings = async (action: "save" | "discard") => {
+    const revisions = { ...globalEdits.current };
     startRequest();
     setMessage(null);
     try {
       const resp = await callRuntimeComboRPC(
         Request.create(action === "save" ? { save: {} } : { discard: {} })
       );
-      if (resp?.error) {
-        setMessage(resp.error.message);
-        return;
-      }
       const affectedCount = resp?.status?.affectedCount ?? 0;
-      setMessage(
-        action === "save"
-          ? `Saved ${affectedCount} runtime combo settings`
-          : `Discarded ${affectedCount} runtime combo settings`
-      );
-      await refreshCombos();
-      await refreshGlobalSettings();
+      const refreshed = await Promise.all([
+        refreshCombos(),
+        refreshGlobalSettings(undefined, revisions),
+      ]);
+      if (refreshed.every(Boolean))
+        setMessage(
+          action === "save"
+            ? `Saved ${affectedCount} runtime combo settings`
+            : `Discarded ${affectedCount} runtime combo settings`
+        );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "RPC failed");
     } finally {
       endRequest();
     }
+  };
+
+  const editGlobalSetting = <K extends GlobalField>(
+    field: K,
+    value: GlobalSettingsDraft[K]
+  ) => {
+    globalEdits.current[field]++;
+    setGlobalSettings((current) => ({ ...current, [field]: value }));
   };
 
   const keyboardAbyssPreview = {
@@ -552,7 +570,7 @@ function RuntimeComboSession() {
           <button
             className="btn"
             disabled={isLoading}
-            onClick={refreshGlobalSettings}
+            onClick={() => void refreshGlobalSettings()}
           >
             Refresh
           </button>
@@ -571,10 +589,7 @@ function RuntimeComboSession() {
               max="65535"
               value={globalSettings.timeoutMs}
               onChange={(event) =>
-                setGlobalSettings({
-                  ...globalSettings,
-                  timeoutMs: Number(event.target.value),
-                })
+                editGlobalSetting("timeoutMs", Number(event.target.value))
               }
             />
           </label>
@@ -586,10 +601,10 @@ function RuntimeComboSession() {
               max="65535"
               value={globalSettings.requirePriorIdleMs}
               onChange={(event) =>
-                setGlobalSettings({
-                  ...globalSettings,
-                  requirePriorIdleMs: Number(event.target.value),
-                })
+                editGlobalSetting(
+                  "requirePriorIdleMs",
+                  Number(event.target.value)
+                )
               }
             />
           </label>
@@ -601,10 +616,7 @@ function RuntimeComboSession() {
               type="checkbox"
               checked={globalSettings.slowRelease}
               onChange={(event) =>
-                setGlobalSettings({
-                  ...globalSettings,
-                  slowRelease: event.target.checked,
-                })
+                editGlobalSetting("slowRelease", event.target.checked)
               }
             />
             Slow release

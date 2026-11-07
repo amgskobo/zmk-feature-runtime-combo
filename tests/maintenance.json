@@ -1,9 +1,7 @@
 {
   "schema": 1,
   "owner": "zmk-runtime-combo-fork",
-  "supported_cores": [
-    "dya"
-  ],
+  "supported_cores": ["dya"],
   "unsupported_core_status": "NOT APPLICABLE",
   "commands": [
     "python3 -m unittest discover -v -s tests -p test_owner.py",
@@ -19,13 +17,25 @@
   "gaps": [
     "Physical USB/BLE/split delivery, timing, power and retention require matching production-board evidence."
   ],
-  "native_verification": "tests/native_verifier.py: actual exit, registered test completion, raw ordered logs, unchanged snapshots, identical binary repeated three times.",
+  "native_verification": "tests/native_verifier.py: actual exit, sanitizer report syntax, registered test completion, raw ordered logs, unchanged snapshots, identical binary repeated three times. Active-update retains exit and all12/10/9/2 complete group markers plus the same sanitizer diagnostic check.",
   "timeout_width": {
     "entry": "python3 -m unittest discover -s tests -p test_timeout_width.py -v",
     "contract": "Full uint32 milliseconds, exact ceiling and configured kernel tick ABI; independent wide oracle and identified math/width controls",
     "physical": "NOT RUN"
   },
   "regression_fixtures": [
+    {
+      "fixture": "tests/test_native_verifier.py; tests/sanitizer_diagnostics.py; tests/active-update/run.sh",
+      "contract": "All nineteen real-ELF controls remain selected. Recovering ASan stdout and UBSan stderr reports fail admission despite exit0, successful checked-init and unchanged events. Clean ASan/UBSan binaries and location-less setting/error labels pass. Active-update retains every complete group-marker and exit check and rejects the same reports.",
+      "negative_control": "The original snapshot verifier fails exactly the two new missing-rejection assertions; other seventeen controls complete. The original active-update runner admits a real recovering diagnostic with all33 groups. Replay the same original ELFs with recovery enabled in three fresh states through the fixed admission check; compilation/setup errors and nonrecovering crashes do not qualify.",
+      "limits": "The selected DYA kscan_mock.c signed shift diagnostic keeps sanitizer-clean native acceptance BLOCKED. No dependency or firmware algorithm change, waived diagnostic, stock compatibility or physical acceptance is implied."
+    },
+    {
+      "fixture": "tests/web/responseBoundary.spec.tsx",
+      "contract": "Generated Combo codec and controlled provider/transport: request-specific single response variants, required read submessages, body/name status acknowledgements, visible blank-error fallback, catalog/metadata/draft retention and all mutation families. Empty catalog/default status, malformed-codec refusal and explicit error controls remain valid. Independent global field saves retain unsent siblings/persist and exact payloads; per-field revisions protect edits during initial reads, field writes and Save/Discard Pending acknowledgements, including valid zero affected counts.",
+      "negative_control": "The unchanged original web/src/App.tsx with current owner assertions must fail follow-up mutation, catalog, required-submessage, visible-error and independent/newer-draft checks; setup, compilation and timeout failures do not qualify.",
+      "limits": "Controlled DOM/RPC boundary only; no physical browser/serial/BLE delivery or cancellation/rollback of an already-sent device mutation. Firmware algorithms, schema, storage and all prior tests remain selected."
+    },
     {
       "fixture": "tests/active-update/run.sh (canonical test_active_updates)",
       "contract": "All12 held-update groups plus10 pending,9 review and2 replay groups on actual ZMK events/HID and Zephyr work queue/timers; three identical-binary runs. Preserve eligibility/deadline controls and complete releases; immutable local replay snapshots, maximum pending length, reentrant keycode-to-position dispatch and active releases, name-only independence, full-table fallback, paired reader/writer interleaving, exact loaded binding records/full-width available layer IDs/direct-write refusal and byte name bounds.",

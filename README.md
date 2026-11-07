@@ -49,6 +49,19 @@ stored by numeric slot internally and can also have a display name for the Web U
 - React Web UI for listing and editing combo slots, with a clickable layout
   for picking positions and a searchable behavior list.
 
+The Web editor checks each reply against the requested operation before applying
+it or sending a follow-up name write. Reads require their matching response and
+the global-settings read requires its settings submessage; mutations require a
+status response. Empty, unknown, mismatched or mixed response envelopes show an
+error and preserve the loaded catalog and drafts. An explicit empty combo list
+and a default-valued status response remain valid. A blank server error has a
+visible fallback message.
+
+The three global-setting save buttons change one field each. Saving one keeps
+the other unsent fields and the persistence choice. A refresh cannot replace a
+field edited after that request began. See the [Web guide](web/README.md) for
+explicit refresh and pending-settings behavior.
+
 Combos and the global settings can be read while Studio is locked. Every change
 (a combo, its name, delete, reset, the global timeout, slow release and
 require-prior-idle settings, save and discard) needs an unlocked Studio,
