@@ -1,0 +1,5 @@
+name: runtime-combo-stack-budget-test
+build:
+  cmake: .
+  settings:
+    dts_root: .

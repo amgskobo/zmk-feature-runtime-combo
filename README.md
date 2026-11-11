@@ -181,6 +181,20 @@ presses reenter matching, so the triggering release or unrelated press is
 processed after them with the updated pending state. Replay preserves the core's
 synchronous listener ordering and normal active-combo releases.
 
+Replay can reenter matching and create another local snapshot before an outer
+snapshot returns. Its stack cost therefore depends on the selected settings and
+downstream listeners. For the eight-slot/16-position profile, the owner ARM
+fixture reproduces a fixed input path that exceeds a 4096-byte system workqueue.
+Use `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=8192` for that keyboard profile and
+remeasure with its complete enabled modules and installed image. This reserves
+4096 more static RAM bytes than a 4096-byte setting on the central; it creates
+no dedicated Combo thread or heap. The pinned Cortex-M fixture observes 6052
+bytes used and 2140 remaining for that path, with all ordered presses/releases,
+and retains a small one-candidate control. This is a measured fixture path, not
+a bound for every binding, 16-slot configuration or external synchronous
+reentry. See [the stack fixture](tests/stack-budget/README.md) and preserve those
+separate hardware/worst-case gates.
+
 Each candidate keeps its own timeout window. Expiring a shorter window does
 not end the wait for a longer candidate whose window is still open. If another
 press eliminates the earliest candidate, the timer moves to the next surviving

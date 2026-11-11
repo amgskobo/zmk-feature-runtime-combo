@@ -31,6 +31,14 @@ entries keep full-width position identities, captured binding and release
 policy; every original held, edit, reset, release and replay group remains
 required. The named last-press timestamp fault must fail the new independent
 time assertion in each activation path.
+The [ARM stack fixture](stack-budget/README.md) additionally measures actual
+32-bit replay SP and kernel stack paint for one/eight candidates, preserving
+all 64 ordered events/timestamps and complete releases. It builds once and runs
+three times, accepts the 8192-byte profile with headroom and separately rejects
+the original 4096-byte budget by its named assertion. Parser controls reject
+missing/reordered reports, incomplete terminal prefixes, inconsistent samples
+and hidden diagnostics. Other settings/bindings and physical stack acceptance
+remain separate.
 The RPC codec fixture also checks 63-byte accepted and oversized rejected
 ASCII/UTF-8 names; `tests/web/nameBounds.spec.tsx` verifies refusal before the
 first mutation and exact accepted name payloads.

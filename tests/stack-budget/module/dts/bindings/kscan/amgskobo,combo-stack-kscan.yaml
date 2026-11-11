@@ -1,0 +1,10 @@
+description: Inert test-only Kscan device for direct event stack measurements
+compatible: "amgskobo,combo-stack-kscan"
+include: base.yaml
+properties:
+  rows:
+    type: int
+    required: true
+  columns:
+    type: int
+    required: true

@@ -15,6 +15,7 @@ from test_timeout_width import TimeoutWidth as TimeoutWidth
 from test_build_budget import BuildBudgetContract as BuildBudgetContract
 from test_arm_memory import ArmMemoryContract as ArmMemoryContract
 from arm_memory import verify_artifact
+from test_stack_budget import StackBudgetValidation as StackBudgetValidation
 
 THIS_DIR = Path(__file__).resolve().parent.parent
 
@@ -121,6 +122,40 @@ class WestCommandsTests(unittest.TestCase):
             result.stdout + result.stderr, encoding="utf-8"
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    @unittest.skipUnless(
+        platform.system() == "Linux", "ARM fixture requires Linux QEMU"
+    )
+    def test_arm_stack_budget(self):
+        import json
+
+        output = self.BUILD_DIR / "arm-stack-budget"
+        result = subprocess.run(
+            [
+                "python3",
+                str(THIS_DIR / "tests/stack-budget/run.py"),
+                "--workspace",
+                str(self.WEST_TOPDIR),
+                "--output",
+                str(output),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.WEST_CWD,
+        )
+        (self.BUILD_DIR / "test_arm_stack_budget.log").write_text(
+            result.stdout + result.stderr
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        report = json.loads((output / "result.json").read_text())
+        self.assertEqual(report["status"], "PASS")
+        self.assertTrue(report["source_stable"])
+        self.assertEqual(len(report["trials"]), 3)
+        for trial in report["trials"]:
+            self.assertEqual(trial["status"], "PASS")
+            self.assertEqual(
+                trial["original4096_control"], "EXPECTED FAIL: COMBO_ARM_STACK_BUDGET"
+            )
 
     @unittest.skipUnless(platform.system() == "Linux", "host build requires Linux")
     def test_rpc_lock(self):

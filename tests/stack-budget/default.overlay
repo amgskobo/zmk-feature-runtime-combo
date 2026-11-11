@@ -1,0 +1,10 @@
+/ {
+    chosen {
+        zmk,kscan = &kscan;
+    };
+    kscan: stack_fixture_kscan {
+        compatible = "amgskobo,combo-stack-kscan";
+        rows = <17>;
+        columns = <2>;
+    };
+};

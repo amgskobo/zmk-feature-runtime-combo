@@ -1,5 +1,6 @@
 {
   "schema": 1,
+  "arm_stack_budget": "tests/stack-budget/run.py through test_owner: actual unchanged DYA app/Combo/Custom Settings/events/keymap/key behavior/HID/workqueue, mps2/an386 Cortex-M4, owned inert Kscan and direct in-range fixed inputs. One candidate and8 candidates/16 positions each require32 exact ordered events/times and full releases; same8192B ELF repeated3 times, actual ARM SP plus initialized kernel stack paint with MPU guard (selected Zephyr excludes software sentinel with the guard). Separate named4096B budget rejection,128B minimum reserve, mandatory complete terminal newline and7 validator-control methods. Retain config/DTS/ELF/compile/source hashes and errors. No native-byte substitution, physical transport/NVS/all-module/16-slot/arbitrary-reentry claim.",
   "owner": "zmk-runtime-combo-fork",
   "supported_cores": ["dya"],
   "unsupported_core_status": "NOT APPLICABLE",
