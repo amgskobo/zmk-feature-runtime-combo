@@ -29,7 +29,9 @@ for run in 1 2 3; do
         ! grep -q 'runtime combo pending: PASS groups=10' "$build/run-$run.log" ||
         ! grep -q 'runtime combo review: PASS groups=9' "$build/run-$run.log" ||
         ! grep -q 'runtime combo replay: PASS groups=2' "$build/run-$run.log" ||
-        ! grep -q 'runtime combo active storage: PASS groups=2' "$build/run-$run.log"; then status=1; fi
+        ! grep -q 'runtime combo active storage: PASS groups=2' "$build/run-$run.log" ||
+        ! grep -q 'runtime combo release reentry: PASS groups=1' "$build/run-$run.log" ||
+        ! grep -q 'runtime combo hold-tap binding: PASS groups=2' "$build/run-$run.log"; then status=1; fi
 done
 if [[ -n ${COMBO_NATIVE_ARTIFACTS:-} ]]; then
     mkdir -p "$COMBO_NATIVE_ARTIFACTS"

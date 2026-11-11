@@ -23,7 +23,7 @@ config ZMK_RUNTIME_COMBO_MAX_COMBOS
     range 1 16
     help
       Each slot holds a decoded copy in a RAM cache used on the key-event hot
-      path, roughly 64 bytes per slot. The Studio list response carries at
+      path, roughly 60 bytes per slot at sixteen positions. The Studio list response carries at
       most 16 combos, which bounds this.
 
 config ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO

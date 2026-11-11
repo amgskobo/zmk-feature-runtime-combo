@@ -20,10 +20,10 @@ def main():
     if not path.resolve().is_relative_to(target):
         parser.error("refusing a source link outside the disposable copy")
     source = path.read_text()
-    first = source.index("static int release_pending_keys(void) {")
+    first = source.index("static void release_pending_keys(void) {")
     last = source.index("\nstatic void cleanup_pending(void)", first)
     function = source[first:last]
-    snapshot = """struct zmk_position_state_changed_event
+    snapshot = """struct runtime_combo_pending_key
         replay[CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO];
     memcpy(replay, pending_keys, count * sizeof(replay[0]));"""
     tokens = re.findall(r"[A-Za-z_]\w*|\d+|\S", snapshot)
@@ -32,7 +32,7 @@ def main():
         parser.error("expected exactly one immutable local replay snapshot")
     fault = re.sub(
         pattern,
-        "struct zmk_position_state_changed_event *replay = pending_keys;",
+        "struct runtime_combo_pending_key *replay = pending_keys;",
         function,
         count=1,
     )

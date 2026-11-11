@@ -2,6 +2,15 @@
 #include <behaviors.dtsi>
 #include <dt-bindings/zmk/kscan_mock.h>
 / {
+    behaviors {
+        combo_ht: combo_hold_tap {
+            compatible = "zmk,behavior-hold-tap";
+            #binding-cells = <2>;
+            tapping-term-ms = <100>;
+            flavor = "tap-preferred";
+            bindings = <&kp>, <&kp>;
+        };
+    };
     /* Read-only during the boot-load, global-save-failure and generic-write
      * groups, so no write of their own marks the cache. */
     runtime_combo_defaults {

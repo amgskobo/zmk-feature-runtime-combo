@@ -19,13 +19,13 @@ def main():
     if not path.resolve().is_relative_to(target):
         parser.error("refusing a source link outside the disposable copy")
     source = path.read_text()
-    original = "const int64_t timestamp = pending_keys[0].data.timestamp;"
+    original = "const int64_t timestamp = pending_keys[0].timestamp;"
     if source.count(original) != 2:
         parser.error("expected both captured-first activation sites")
     path.write_text(
         source.replace(
             original,
-            "const int64_t timestamp = pending_keys[pending_count - 1].data.timestamp;",
+            "const int64_t timestamp = pending_keys[pending_count - 1].timestamp;",
         )
     )
     print("Applied active captured-time fault")

@@ -179,7 +179,14 @@ bounded local array. Reentrant position events can start another candidate
 without overwriting that snapshot. A replay generation records when multiple
 presses reenter matching, so the triggering release or unrelated press is
 processed after them with the updated pending state. Replay preserves the core's
-synchronous listener ordering and normal active-combo releases.
+synchronous listener ordering and normal active-combo releases. Pending records
+retain full-width positions, sources, timestamps and listener-resume indices;
+their event wrappers and pressed state are reconstructed at dispatch. Each
+record and local snapshot element is16 bytes on ARM, compared with32 for the
+previous full-event representation. At16 positions this saves256 static bytes
+and256 bytes per nested snapshot, with no heap or new queue. Packing the decoded
+cache and active-slot index saves another48 static bytes for8 slots/four held
+combos without changing capacities, stored definitions or binding parameters.
 
 Replay can reenter matching and create another local snapshot before an outer
 snapshot returns. Its stack cost therefore depends on the selected settings and
@@ -188,9 +195,11 @@ fixture reproduces a fixed input path that exceeds a 4096-byte system workqueue.
 Use `CONFIG_SYSTEM_WORKQUEUE_STACK_SIZE=8192` for that keyboard profile and
 remeasure with its complete enabled modules and installed image. This reserves
 4096 more static RAM bytes than a 4096-byte setting on the central; it creates
-no dedicated Combo thread or heap. The pinned Cortex-M fixture observes 6052
-bytes used and 2140 remaining for that path, with all ordered presses/releases,
-and retains a small one-candidate control. This is a measured fixture path, not
+no dedicated Combo thread or heap. The original full-event Cortex-M fixture
+observed6052 bytes used and2140 remaining for that path. The compact-record
+fixture retains the same input, ordered presses/releases and small
+one-candidate control; retain its current compiled-image measurements when
+remeasuring this profile. This is a measured fixture path, not
 a bound for every binding, 16-slot configuration or external synchronous
 reentry. See [the stack fixture](tests/stack-budget/README.md) and preserve those
 separate hardware/worst-case gates.

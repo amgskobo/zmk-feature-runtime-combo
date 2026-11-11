@@ -90,6 +90,23 @@ static int active_time_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(runtime_combo_active_time, active_time_listener);
 ZMK_SUBSCRIPTION(runtime_combo_active_time, zmk_keycode_state_changed);
 
+/* A behavior's synchronous downstream release can retire another active
+ * entry and admit a replacement before the original invocation returns. */
+static bool release_reentry;
+static int release_reentry_listener(const zmk_event_t *eh) {
+    const struct zmk_keycode_state_changed *event = as_zmk_keycode_state_changed(eh);
+    if (release_reentry && event && !event->state && event->keycode == ZMK_HID_USAGE_ID(B)) {
+        release_reentry = false;
+        position(6, false);
+        position(7, false);
+        position(8, true);
+        position(9, true);
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+ZMK_LISTENER(runtime_combo_release_reentry, release_reentry_listener);
+ZMK_SUBSCRIPTION(runtime_combo_release_reentry, zmk_keycode_state_changed);
+
 /* Controlled persistence result; no flash or power-loss acceptance claim. */
 static int save_error;
 K_SEM_DEFINE(body_written, 0, 1);
@@ -683,6 +700,63 @@ static void review_active_time(bool subset) {
     active_time_track = false;
 }
 
+static void review_release_reentry(void) {
+    struct zmk_runtime_combo_config first = review_config(C, 6, 7);
+    struct zmk_runtime_combo_config second = review_config(B, 4, 5);
+    struct zmk_runtime_combo_config replacement = review_config(D, 8, 9);
+    second.slow_release_override = ZMK_RUNTIME_COMBO_SLOW_RELEASE_ON;
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(0, &first, false) == 0);
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(1, &second, false) == 0);
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(2, &replacement, false) == 0);
+    pending_position(6, true);
+    pending_position(7, true);
+    pending_position(4, true);
+    pending_position(5, true);
+    __ASSERT_NO_MSG(held(B) && held(C));
+    pending_position(4, false);
+    __ASSERT_NO_MSG(held(B));
+    release_reentry = true;
+    pending_position(5, false);
+    __ASSERT_NO_MSG(!release_reentry && !held(B) && !held(C) && held(D));
+    pending_position(8, false);
+    pending_position(9, false);
+    __ASSERT(!held(D), "Reentrant release retired the replacement active combo");
+    __ASSERT_NO_MSG(!held(E) && !held(F) && !held(G) && !held(H) && !held(I) && !held(J));
+}
+
+static void review_hold_tap(bool hold) {
+    struct zmk_runtime_combo_config combo = review_config(LSHFT, 4, 5);
+    combo.behavior.behavior_dev = "combo_hold_tap";
+    combo.behavior.param2 = B;
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(0, &combo, false) == 0);
+    active_time_down_count = active_time_up_count = 0;
+    active_time_track = true;
+    pending_position(4, true);
+    pending_position(5, true);
+    /* The pending behavior must keep the originally captured binding even
+     * when its runtime slot changes before the hold/tap decision. */
+    combo.behavior.behavior_dev = "key_press";
+    combo.behavior.param1 = C;
+    combo.behavior.param2 = 0;
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(0, &combo, false) == 0);
+    if (hold) {
+        k_sleep(K_MSEC(150));
+        __ASSERT(held(LSHFT) && !held(B) && !held(C), "Captured hold-tap hold changed");
+    }
+    pending_position(4, false);
+    pending_position(5, false);
+    __ASSERT(!held(LSHFT) && !held(B) && !held(C), "Captured hold-tap release changed");
+    __ASSERT(active_time_down_count == !hold && active_time_up_count == !hold,
+             "Captured hold-tap tap changed");
+    active_time_track = false;
+    pending_position(4, true);
+    pending_position(5, true);
+    __ASSERT_NO_MSG(held(C));
+    pending_position(4, false);
+    pending_position(5, false);
+    __ASSERT_NO_MSG(!held(C));
+}
+
 static void review_test(const char *scenario) {
     pending_setup();
     if (!strcmp(scenario, "replay-max") || !strcmp(scenario, "replay-reentrant")) {
@@ -701,6 +775,10 @@ static void review_test(const char *scenario) {
         review_active_time(!strcmp(scenario, "subset-time"));
     } else if (!strcmp(scenario, "name-bounds")) {
         review_name_bounds();
+    } else if (!strcmp(scenario, "release-reentrant")) {
+        review_release_reentry();
+    } else if (!strcmp(scenario, "binding-tap") || !strcmp(scenario, "binding-hold")) {
+        review_hold_tap(!strcmp(scenario, "binding-hold"));
     } else {
         __ASSERT(false, "Unknown review scenario: %s", scenario);
     }
@@ -721,6 +799,11 @@ static void review_tests(void) {
     review_test("active-time");
     review_test("subset-time");
     printk("runtime combo active storage: PASS groups=2\n");
+    review_test("release-reentrant");
+    printk("runtime combo release reentry: PASS groups=1\n");
+    review_test("binding-tap");
+    review_test("binding-hold");
+    printk("runtime combo hold-tap binding: PASS groups=2\n");
 }
 
 static void tests(void *a, void *b, void *c) {

@@ -9,8 +9,18 @@ import sys
 
 
 def verify_active_storage(size, positions, pressed):
-    if size != (24 + 4 * positions) * pressed:
+    if size != (20 + 4 * positions) * pressed:
         raise AssertionError("Runtime combo active storage budget exceeded")
+
+
+def verify_pending_storage(size, positions):
+    if size != 16 * positions:
+        raise AssertionError("Runtime combo pending storage budget exceeded")
+
+
+def verify_cache_storage(size, positions, slots):
+    if size != ((28 + 2 * positions + 3) & ~3) * slots:
+        raise AssertionError("Runtime combo cache storage budget exceeded")
 
 
 def input_allocation(text, symbol, object_name):
@@ -71,6 +81,8 @@ def verify_artifact(artifact, owner):
     )
     text = (artifact / "zephyr/zmk.map").read_text()
     active = input_allocation(text, "active_combos", "runtime_combo.c.obj")
+    pending = input_allocation(text, "pending_keys", "runtime_combo.c.obj")
+    decoded = input_allocation(text, "runtime_combo_cache", "runtime_combo.c.obj")
     response_name = "zmk_rpc_custom_subsystem_response_buffer_cormoran__runtime_combo"
     response = input_allocation(text, response_name, "runtime_combo_handler.c.obj")
     enabled = config.get("CONFIG_ZMK_RUNTIME_COMBO") == "y"
@@ -82,8 +94,21 @@ def verify_artifact(artifact, owner):
             int(config["CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO"]),
             int(config["CONFIG_ZMK_COMBO_MAX_PRESSED_COMBOS"]),
         )
+        assert pending is not None, "Missing linked runtime combo pending state"
+        verify_pending_storage(
+            pending["bytes"],
+            int(config["CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO"]),
+        )
+        assert decoded is not None, "Missing linked runtime combo decoded cache"
+        verify_cache_storage(
+            decoded["bytes"],
+            int(config["CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO"]),
+            int(config["CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS"]),
+        )
     else:
-        assert active is None and response is None, "Disabled combo retains its state"
+        assert (
+            active is None and pending is None and decoded is None and response is None
+        ), "Disabled combo retains its state"
     if rpc:
         assert response is not None, "Missing linked combo response"
         verify_response_storage(
@@ -108,7 +133,12 @@ def verify_artifact(artifact, owner):
         for line in result.stdout.splitlines()
         if len(row := line.split()) == 4
     }
-    for name, row in [("active_combos", active), (response_name, response)]:
+    for name, row in [
+        ("active_combos", active),
+        ("pending_keys", pending),
+        ("runtime_combo_cache", decoded),
+        (response_name, response),
+    ]:
         if row:
             assert (row["address"], row["bytes"], name) in symbols, (
                 "ELF/map allocation mismatch"
@@ -127,12 +157,14 @@ def verify_artifact(artifact, owner):
             sources[path] = hashlib.sha256((owner / path).read_bytes()).hexdigest()
     usage = {
         "active": active,
+        "pending": pending,
+        "cache": decoded,
         "response": response,
         "source_sha256": sources,
         "elf_sha256": hashlib.sha256(
             (artifact / "zephyr/zmk.elf").read_bytes()
         ).hexdigest(),
-        "scope": "These two linked ARM allocations only, not module total or runtime stack/heap peak",
+        "scope": "These linked ARM allocations only, not module total or runtime stack/heap peak",
     }
     (artifact / "combo-static-memory.json").write_text(
         json.dumps(usage, indent=2) + "\n"

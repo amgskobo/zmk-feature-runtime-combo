@@ -31,6 +31,12 @@ entries keep full-width position identities, captured binding and release
 policy; every original held, edit, reset, release and replay group remains
 required. The named last-press timestamp fault must fail the new independent
 time assertion in each activation path.
+An additional release-reentry group protects an active replacement when a
+completed combo's binding synchronously releases another entry and creates a
+new one. The original source fails the replacement-release assertion in three
+identical-binary runs. Two actual Hold Tap groups retain pending tap/hold
+decisions and releases through slot edits. Every earlier marker remains
+required, with separate complete1/2-group markers for these additions.
 The [ARM stack fixture](stack-budget/README.md) additionally measures actual
 32-bit replay SP and kernel stack paint for one/eight candidates, preserving
 all 64 ordered events/timestamps and complete releases. It builds once and runs
@@ -118,7 +124,12 @@ assertion, after successful configuration/compilation. Setup failures do not
 qualify. All four original ARM board variants remain, with an additional16-slot
 variant. `tests/arm_memory.py` binds the actual compiled owner C, effective
 config, map and ELF symbols: at16 positions/four held combos, active storage is
-352 bytes instead of2144. It separately checks each linked response and rejects
+336 bytes instead of2144 (and the preceding352-byte representation). The
+validated0..15 slot index occupies one byte without narrowing positions. The
+pending array is256 bytes instead of512; the8-slot decoded cache is480 bytes
+instead of512 at16 positions. The cache's three-valued release override fills
+existing header padding. Separate named original-allocation controls protect
+all three reductions. The checker separately checks each linked response and rejects
 retained state when the feature/RPC is disabled. These are static allocations,
 not runtime stack/heap peaks or arbitrary nested-replay stack acceptance.
 

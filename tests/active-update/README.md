@@ -109,9 +109,12 @@ HID rollover limit. The original distinct E/F/G assertions remain. The canonical
 runner additionally requires `runtime combo replay: PASS groups=2` in every run.
 
 The production implementation copies the pending presses or unused tail into
-a local array before synchronous dispatch. Each snapshot is bounded by the
-configured maximum positions. New candidates may reuse the mutable pending
-array without replacing a local replay tail. The generation counter retains
+a local array before synchronous dispatch. Each pending record retains its
+full-width position, source, original timestamp and listener-resume index.
+The event wrapper and pressed state are reconstructed at dispatch; each ARM
+record and immutable snapshot element is16 bytes rather than32. Each snapshot
+is bounded by the configured maximum positions. New candidates may reuse the
+mutable pending array without replacing a local replay tail. The generation counter retains
 the triggering input's decision to revisit the listener chain after replay;
 upstream listeners and active-combo releases retain their ordinary ordering.
 The complete fixture keeps the ordinary 2048-byte system workqueue stack and
@@ -158,3 +161,20 @@ mutable-tail counterexample remain required for the final source snapshot.
 
 These regressions do not establish physical USB/BLE delivery, split timing or
 transport congestion behavior.
+
+The `release-reentrant` group starts two independently held combos. The final
+slow-release callback of the second synchronously releases the first and
+activates a replacement. The replacement must still release its original
+binding. The original implementation fails the named replacement assertion
+in three runs of one binary because it removes the old active-array index
+after that index has been reused. The repaired path completes its table
+mutation and retains only the captured binding and slot across dispatch.
+The runner requires `runtime combo release reentry: PASS groups=1` in addition
+to every earlier marker.
+
+`binding-tap` and `binding-hold` use the actual core Hold Tap behavior, its
+metadata, event capture and timer. A runtime combo retains that behavior
+through a slot edit until its tap or held modifier releases; the next press
+uses the new binding. The runner also requires
+`runtime combo hold-tap binding: PASS groups=2`. These selected bindings and
+controlled reentry do not establish a maximum for arbitrary external recursion.

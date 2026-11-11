@@ -1,13 +1,38 @@
 import unittest
 
-from arm_memory import input_allocation, verify_active_storage
+from arm_memory import (
+    input_allocation,
+    verify_active_storage,
+    verify_pending_storage,
+    verify_cache_storage,
+)
 
 
 class ArmMemoryContract(unittest.TestCase):
+    def test_pending_layout_and_original_event_wrapper_control(self):
+        verify_pending_storage(256, 16)
+        with self.assertRaisesRegex(AssertionError, "pending storage budget exceeded"):
+            verify_pending_storage(512, 16)
+
     def test_actual_active_layout_and_original_budget_control(self):
-        verify_active_storage(352, 16, 4)
+        verify_active_storage(336, 16, 4)
+        with self.assertRaisesRegex(AssertionError, "active storage budget exceeded"):
+            verify_active_storage(352, 16, 4)
         with self.assertRaisesRegex(AssertionError, "active storage budget exceeded"):
             verify_active_storage(2144, 16, 4)
+
+    def test_cache_layout_and_original_enum_storage_control(self):
+        for slots in (8, 16):
+            for positions, current, original in (
+                (2, 32, 36),
+                (3, 36, 40),
+                (16, 60, 64),
+            ):
+                verify_cache_storage(current * slots, positions, slots)
+                with self.assertRaisesRegex(
+                    AssertionError, "cache storage budget exceeded"
+                ):
+                    verify_cache_storage(original * slots, positions, slots)
 
     def test_wrapped_owner_allocation_ignores_discarded_other_object(self):
         text = """RAM 0x20000000 0x40000 xrw
