@@ -69,6 +69,27 @@ static int replay_keycode_listener(const zmk_event_t *eh) {
 ZMK_LISTENER(runtime_combo_replay_keys, replay_keycode_listener);
 ZMK_SUBSCRIPTION(runtime_combo_replay_keys, zmk_keycode_state_changed);
 
+/* Preserve the first captured press time independently of the compact active
+ * position storage; release still uses its actual incoming event time. */
+static bool active_time_track;
+static unsigned active_time_down_count, active_time_up_count;
+static int64_t active_time_down, active_time_up;
+static int active_time_listener(const zmk_event_t *eh) {
+    const struct zmk_keycode_state_changed *event = as_zmk_keycode_state_changed(eh);
+    if (active_time_track && event && event->keycode == ZMK_HID_USAGE_ID(B)) {
+        if (event->state) {
+            active_time_down = event->timestamp;
+            active_time_down_count++;
+        } else {
+            active_time_up = event->timestamp;
+            active_time_up_count++;
+        }
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+ZMK_LISTENER(runtime_combo_active_time, active_time_listener);
+ZMK_SUBSCRIPTION(runtime_combo_active_time, zmk_keycode_state_changed);
+
 /* Controlled persistence result; no flash or power-loss acceptance claim. */
 static int save_error;
 K_SEM_DEFINE(body_written, 0, 1);
@@ -627,6 +648,41 @@ static void review_name_bounds(void) {
     __ASSERT_NO_MSG(strlen(actual) == ZMK_RUNTIME_COMBO_NAME_MAX_BYTES);
 }
 
+static void review_active_time(bool subset) {
+    struct zmk_runtime_combo_config combo = review_config(B, 4, 5);
+    __ASSERT_NO_MSG(zmk_runtime_combo_write(0, &combo, false) == 0);
+    if (subset) {
+        combo.behavior.param1 = C;
+        combo.key_position_len = 3;
+        combo.key_positions[2] = 6;
+        combo.timeout_ms = 800;
+        __ASSERT_NO_MSG(zmk_runtime_combo_write(1, &combo, false) == 0);
+    }
+    active_time_down_count = active_time_up_count = 0;
+    active_time_down = active_time_up = INT64_MIN;
+    active_time_track = true;
+    int64_t first = pending_position(4, true);
+    k_sleep(K_MSEC(20));
+    int64_t second = pending_position(5, true);
+    __ASSERT(second > first, "Fixture must separate the two press times");
+    if (subset) {
+        __ASSERT_NO_MSG(!held(B));
+        k_sleep(K_MSEC(20));
+        pending_position(7, true);
+    }
+    __ASSERT(active_time_down_count == 1 && active_time_down == first,
+             "Captured first press time changed");
+    int64_t released = pending_position(4, false);
+    __ASSERT(active_time_up_count == 1 && active_time_up == released,
+             "Active release time changed");
+    pending_position(5, false);
+    if (subset) {
+        pending_position(7, false);
+    }
+    __ASSERT_NO_MSG(!held(B) && !held(E) && !held(F) && !held(H));
+    active_time_track = false;
+}
+
 static void review_test(const char *scenario) {
     pending_setup();
     if (!strcmp(scenario, "replay-max") || !strcmp(scenario, "replay-reentrant")) {
@@ -641,6 +697,8 @@ static void review_test(const char *scenario) {
         review_pair();
     } else if (!strcmp(scenario, "stored-binding")) {
         review_stored_binding();
+    } else if (!strcmp(scenario, "active-time") || !strcmp(scenario, "subset-time")) {
+        review_active_time(!strcmp(scenario, "subset-time"));
     } else if (!strcmp(scenario, "name-bounds")) {
         review_name_bounds();
     } else {
@@ -660,6 +718,9 @@ static void review_tests(void) {
     review_test("replay-max");
     review_test("replay-reentrant");
     printk("runtime combo replay: PASS groups=2\n");
+    review_test("active-time");
+    review_test("subset-time");
+    printk("runtime combo active storage: PASS groups=2\n");
 }
 
 static void tests(void *a, void *b, void *c) {

@@ -13,6 +13,8 @@ from test_native_verifier import NativeVerifierContract as NativeVerifierContrac
 from test_timeout_width import TimeoutWidth as TimeoutWidth
 
 from test_build_budget import BuildBudgetContract as BuildBudgetContract
+from test_arm_memory import ArmMemoryContract as ArmMemoryContract
+from arm_memory import verify_artifact
 
 THIS_DIR = Path(__file__).resolve().parent.parent
 
@@ -123,7 +125,12 @@ class WestCommandsTests(unittest.TestCase):
     @unittest.skipUnless(platform.system() == "Linux", "host build requires Linux")
     def test_rpc_lock(self):
         result = subprocess.run(
-            ["python3", str(THIS_DIR / "tests" / "rpc-lock" / "run.py")],
+            [
+                "python3",
+                str(THIS_DIR / "tests" / "rpc-lock" / "run.py"),
+                "--output",
+                str(self.BUILD_DIR / "rpc-lock"),
+            ],
             capture_output=True,
             text=True,
             cwd=self.WEST_CWD,
@@ -132,6 +139,26 @@ class WestCommandsTests(unittest.TestCase):
             result.stdout + result.stderr, encoding="utf-8"
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_protocol_layout(self):
+        result = subprocess.run(
+            [
+                "python3",
+                str(THIS_DIR / "tests/proto-layout/run.py"),
+                "--output",
+                str(self.BUILD_DIR / "protocol-layout"),
+            ],
+            capture_output=True,
+            text=True,
+            cwd=self.WEST_CWD,
+        )
+        (self.BUILD_DIR / "test_protocol_layout.log").write_text(
+            result.stdout + result.stderr
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(
+            "runtime combo protocol layout: PASS profiles=2 refreshes=2", result.stdout
+        )
 
     @unittest.skipUnless(
         platform.system() == "Linux", "production DTS compile requires Linux"
@@ -184,6 +211,15 @@ class WestCommandsTests(unittest.TestCase):
                         "# CONFIG_ZMK_STUDIO is not set",
                         "CONFIG_ZMK_BEHAVIOR_METADATA=y",
                         NotFound("CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC"),
+                    ],
+                    device=[],
+                ),
+                "runtime_combo_board_max_capacity": ConfigAndDeviceTree(
+                    config=[
+                        "CONFIG_ZMK_STUDIO=y",
+                        "CONFIG_ZMK_RUNTIME_COMBO=y",
+                        "CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC=y",
+                        "CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS=16",
                     ],
                     device=[],
                 ),
@@ -241,6 +277,7 @@ class WestCommandsTests(unittest.TestCase):
 
         for artifact, entries in artifacts_and_expected_build_params.items():
             artifact_dir = self.BUILD_DIR / artifact / "zephyr"
+            verify_artifact(artifact_dir.parent, THIS_DIR)
             config_path = artifact_dir / ".config"
             device_tree_path = (
                 artifact_dir

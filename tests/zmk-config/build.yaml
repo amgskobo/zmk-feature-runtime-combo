@@ -14,6 +14,12 @@ include:
     shield: tester_xiao
     cmake-args: -DCONFIG_ZMK_RUNTIME_COMBO=y
 
+  - artifact: runtime_combo_board_max_capacity
+    board: xiao_ble//zmk
+    shield: tester_xiao
+    cmake-args: -DCONFIG_ZMK_STUDIO=y -DCONFIG_ZMK_RUNTIME_COMBO=y -DCONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC=y -DCONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS=16
+    snippet: studio-rpc-usb-uart
+
   - artifact: custom_settings_board
     board: xiao_ble//zmk
     shield: tester_xiao

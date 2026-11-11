@@ -1,0 +1,27 @@
+cmake_minimum_required(VERSION 3.20)
+project(runtime_combo_protocol_layout C)
+
+# The actual owner CMake and selected public FindNanopb run here. Only its
+# generated protocol library and a type witness are built, not a firmware app.
+set(ZEPHYR_BASE ${SELECTED_ZEPHYR})
+set(ZEPHYR_NANOPB_MODULE_DIR ${SELECTED_NANOPB})
+set(CONFIG_ZMK_RUNTIME_COMBO ON)
+set(CONFIG_ZMK_RUNTIME_COMBO_STUDIO_RPC ON)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/app.c "/* Unbuilt framework target. */\n")
+add_library(app STATIC EXCLUDE_FROM_ALL ${CMAKE_CURRENT_BINARY_DIR}/app.c)
+
+macro(zephyr_include_directories)
+  target_include_directories(app PRIVATE ${ARGV})
+endmacro()
+
+macro(zephyr_library)
+  add_library(owner_protocol STATIC)
+  target_include_directories(owner_protocol PRIVATE ${SELECTED_NANOPB})
+  set(ZEPHYR_CURRENT_LIBRARY owner_protocol)
+endmacro()
+
+add_subdirectory(${OWNER_INPUT} owner)
+add_library(layout_witness OBJECT layout.c)
+target_include_directories(layout_witness PRIVATE
+  ${CMAKE_CURRENT_BINARY_DIR}/owner/proto ${SELECTED_NANOPB})
+add_dependencies(layout_witness owner_protocol)

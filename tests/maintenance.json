@@ -17,11 +17,19 @@
   "gaps": [
     "Physical USB/BLE/split delivery, timing, power and retention require matching production-board evidence."
   ],
-  "native_verification": "tests/native_verifier.py: actual exit, sanitizer report syntax, registered test completion, raw ordered logs, unchanged snapshots, identical binary repeated three times. Active-update retains exit and all12/10/9/2 complete group markers plus the same sanitizer diagnostic check.",
+  "native_verification": "tests/native_verifier.py: actual exit, sanitizer report syntax, registered test completion, raw ordered logs, unchanged snapshots, identical binary repeated three times. Active-update retains exit and all12/10/9/2/2 complete group markers plus the same sanitizer diagnostic check.",
   "timeout_width": {
     "entry": "python3 -m unittest discover -s tests -p test_timeout_width.py -v",
     "contract": "Full uint32 milliseconds, exact ceiling and configured kernel tick ABI; independent wide oracle and identified math/width controls",
     "physical": "NOT RUN"
+  },
+  "static_memory": {
+    "entries": "Canonical test_rpc_lock, test_protocol_layout and all5 ARM board variants; all4 original board variants retained.",
+    "contract": "Complete frozen inline response; configured8/16 slots plus standalone16 generation. Preserve wire schema, protocol16 cap/17 refusal, full32 positions/layers/binding parameters/requests,63-byte names, failed-slot continuation, locked reads, sizing/output interleave and all mutation assertions. Five handler binaries produce15 independent exact Python-protobuf wire vectors. Narrow only successful-read indices<16 and existing uint16 timeout/prior-idle fields.",
+    "ARM": "Response2760 ->1288 at8 slots /2568 at16; active2144 ->352 at16 positions/four held combos. Actual owner C/config/map/ELF symbol proof required; separate native32/native64 enum ABI bounds1352/2696, original2824.",
+    "generation": "Actual owner CMake and selected public FindNanopb .options.in; base-options CMAKE_CONFIGURE_DEPENDS and template automatic reconfigure. Standalone .options fallback retained. Both dependency refreshes and8/16 type profiles must complete; protocol object fixture is not a firmware runtime.",
+    "negative_controls": "Original linked allocations fail named active/response RAM bounds. fixed-capacity must fail Configured Combo Response RAM; missing-base-dependency must fail Base options dependency did not reconfigure after successful build. Captured-time fault controls remain separately required.",
+    "limits": "No stack/heap displacement, capacity/schema reduction, pending-replay change, physical transport/flash acceptance or arbitrary nested-replay stack claim."
   },
   "regression_fixtures": [
     {
@@ -38,9 +46,15 @@
     },
     {
       "fixture": "tests/active-update/run.sh (canonical test_active_updates)",
-      "contract": "All12 held-update groups plus10 pending,9 review and2 replay groups on actual ZMK events/HID and Zephyr work queue/timers; three identical-binary runs. Preserve eligibility/deadline controls and complete releases; immutable local replay snapshots, maximum pending length, reentrant keycode-to-position dispatch and active releases, name-only independence, full-table fallback, paired reader/writer interleaving, exact loaded binding records/full-width available layer IDs/direct-write refusal and byte name bounds.",
+      "contract": "All12 held-update groups plus10 pending,9 review,2 replay and2 active-storage groups on actual ZMK events/HID and Zephyr work queue/timers; three identical-binary runs. Preserve eligibility/deadline controls and complete releases; immutable local replay snapshots, maximum pending length, reentrant keycode-to-position dispatch and active releases, name-only independence, full-table fallback, paired reader/writer interleaving, exact loaded binding records/full-width available layer IDs/direct-write refusal and byte name bounds. Compact active entries retain full-width positions, captured binding and release policy; both immediate and remembered-subset activation retain the exact first-press time and actual release time.",
       "negative_control": "Original production fails the same layer/idle/timer-retime/overlap-late assertions; focused selection cannot replace complete canonical group markers.",
       "limits": "Controlled storage, no physical HID/BLE/split/flash acceptance."
+    },
+    {
+      "fixture": "tests/active-update/apply_active_timestamp_fault.py; COMBO_REVIEW_CASE=active-time and subset-time",
+      "contract": "The helper replaces the first captured press timestamp with the last pending press timestamp at both production activation sites in a distinct disposable container copy. Each focused group must fail the named Captured first press time changed assertion in three identical-binary runs. Complete canonical35-group runs remain mandatory; focused selectors do not replace them.",
+      "negative_control": "Compilation errors, timeouts, unrelated assertions or crashes do not qualify as the captured-time rejection.",
+      "limits": "The scalar time capture and compact active position storage do not change pending replay arrays, workqueue stack size, configured capacities or persistence. No arbitrary nested-replay stack acceptance is implied."
     },
     {
       "fixture": "tests/active-update/apply_replay_fault.py; COMBO_REVIEW_CASE=replay-reentrant",

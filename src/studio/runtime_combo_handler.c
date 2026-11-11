@@ -39,8 +39,9 @@ ZMK_RPC_CUSTOM_SUBSYSTEM(cormoran__runtime_combo, &runtime_combo_meta,
 ZMK_RPC_CUSTOM_SUBSYSTEM_RESPONSE_BUFFER(cormoran__runtime_combo, cormoran_runtime_combo_Response);
 
 /* ListCombos answers every slot in one response. */
-BUILD_ASSERT(CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS <=
-                 ARRAY_SIZE(((cormoran_runtime_combo_ListCombosResponse *)NULL)->combos),
+BUILD_ASSERT(CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS <= 16 &&
+                 CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS <=
+                     ARRAY_SIZE(((cormoran_runtime_combo_ListCombosResponse *)NULL)->combos),
              "CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS exceeds the ListCombosResponse capacity");
 BUILD_ASSERT(CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO <=
                  ARRAY_SIZE(((cormoran_runtime_combo_Combo *)NULL)->key_positions),

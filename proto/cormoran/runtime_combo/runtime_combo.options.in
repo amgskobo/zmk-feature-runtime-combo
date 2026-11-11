@@ -1,0 +1,4 @@
+@RUNTIME_COMBO_NANOPB_OPTIONS@
+# A complete response remains frozen before encoding; allocate every configured
+# slot without retaining the unused slots of the standalone protocol-16 layout.
+cormoran.runtime_combo.ListCombosResponse.combos max_count:@CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS@

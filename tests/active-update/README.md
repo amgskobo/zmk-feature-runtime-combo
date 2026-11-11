@@ -118,6 +118,20 @@ The complete fixture keeps the ordinary 2048-byte system workqueue stack and
 checks both the maximum-length and reentrant cases without a separate replay
 queue or overload policy.
 
+Held active entries retain the captured binding, release policy and full-width
+position identities, rather than complete events whose headers/state and
+per-key times are unused after activation. Both activation paths capture the
+original first press time before resetting/reusing the pending state. Two
+additional `active-time`/`subset-time` groups require that exact downstream
+press time and the actual incoming release time; the canonical runner requires
+`runtime combo active storage: PASS groups=2` as well as every original marker.
+`apply_active_timestamp_fault.py ISOLATED_OWNER` selects the last press time in
+both activation paths. Each focused group must reject that named time assertion
+in three runs of the unchanged control binary; build errors/timeouts do not
+qualify. The active representation and these checks retain the pending replay
+arrays, stack sizes and input limits. These cases do not establish arbitrary
+nested-replay stack acceptance.
+
 For the mutable-tail negative control, invoke the unchanged helper from a
 read-only owner source against a distinct disposable container staging copy:
 

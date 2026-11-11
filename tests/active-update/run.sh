@@ -28,7 +28,8 @@ for run in 1 2 3; do
     if [[ $result != 0 ]] || ! grep -q 'runtime combo active-update: PASS groups=12' "$build/run-$run.log" ||
         ! grep -q 'runtime combo pending: PASS groups=10' "$build/run-$run.log" ||
         ! grep -q 'runtime combo review: PASS groups=9' "$build/run-$run.log" ||
-        ! grep -q 'runtime combo replay: PASS groups=2' "$build/run-$run.log"; then status=1; fi
+        ! grep -q 'runtime combo replay: PASS groups=2' "$build/run-$run.log" ||
+        ! grep -q 'runtime combo active storage: PASS groups=2' "$build/run-$run.log"; then status=1; fi
 done
 if [[ -n ${COMBO_NATIVE_ARTIFACTS:-} ]]; then
     mkdir -p "$COMBO_NATIVE_ARTIFACTS"

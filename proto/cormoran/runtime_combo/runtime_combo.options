@@ -7,3 +7,10 @@ cormoran.runtime_combo.SetComboNameRequest.name           max_size:64
 cormoran.runtime_combo.ListCombosResponse.combos          max_count:16
 cormoran.runtime_combo.ErrorResponse.message              max_size:64
 cormoran.runtime_combo.StatusResponse.message             max_size:64
+
+# Outbound values only: successful reads have index<MAX_COMBOS<=16, the
+# timeout/prior-idle getters are uint16_t.
+# Requests, positions, layer masks and binding parameters retain uint32 storage.
+cormoran.runtime_combo.Combo.index                       int_size:IS_8
+cormoran.runtime_combo.Combo.timeout_ms                  int_size:IS_16
+cormoran.runtime_combo.Combo.require_prior_idle_ms       int_size:IS_16

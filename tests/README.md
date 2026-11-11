@@ -25,6 +25,12 @@ use, checks the full-width layer domain independently of key-position count,
 and retains direct-write refusal and valid layer-1 controls. Two further groups
 exercise maximum-length and synchronous reentrant replay against immutable
 local snapshots on the ordinary system workqueue stack.
+Two active-storage groups retain the first captured press timestamp and actual
+release timestamp through immediate and remembered-subset activation. Held
+entries keep full-width position identities, captured binding and release
+policy; every original held, edit, reset, release and replay group remains
+required. The named last-press timestamp fault must fail the new independent
+time assertion in each activation path.
 The RPC codec fixture also checks 63-byte accepted and oversized rejected
 ASCII/UTF-8 names; `tests/web/nameBounds.spec.tsx` verifies refusal before the
 first mutation and exact accepted name payloads.
@@ -74,6 +80,39 @@ A slot that cannot be read (its behavior left the keymap) is left out of
 ListCombos instead of failing the whole list. A build with 17 combo slots must
 fail: one ListCombos response holds 16.
 The runtime combo store, custom settings and Studio lock are controlled.
+
+The response remains a complete frozen inline list before encoding. The
+selected public FindNanopb `.options.in` path sizes it for the configured slot
+count; the ordinary `.options` retains standalone generation for16 slots.
+Only outbound successful-read indices and existing uint16 timeout/prior-idle
+getters use narrower storage. Requests, positions, layers and binding parameters
+retain32 bits. Every configured slot and the protocol16 limit remain supported.
+The ARM response is1288 bytes for8 slots and2568 for16, versus2760 originally;
+native32/native64 have a separate enum ABI and explicit1352/2696-byte bounds.
+
+The handler fixture compares maximum, holes/read-error and empty replies to an
+independent Python protobuf encoder at8/16 slots, in optimized and strict
+ASan/UBSan variants, plus standalone generation. All16 positions, full-width
+numeric fields,63-byte names, locked reads and complete sizing/output passes
+remain required after a controlled live-store change. Five executable variants
+produce15 exact ordered vectors; neither a partial run nor matching size alone
+establishes a complete result. `--output FRESH_ABSOLUTE_DIRECTORY` retains source
+IDs, generated files, compiler commands, binaries and raw results.
+
+`tests/proto-layout/run.py --output FRESH_ABSOLUTE_DIRECTORY` runs the actual
+owner CMake with the selected public FindNanopb and ARM compiler. It compiles
+the generated protocol library/type witness, verifies8/16 slots and full-width
+fields, and requires both base-options and template edits in an isolated input
+copy to refresh generation automatically. It does not compile or execute the
+firmware application. Its `fixed-capacity` fault must fail the named configured
+RAM assertion; `missing-base-dependency` must fail the named base refresh
+assertion, after successful configuration/compilation. Setup failures do not
+qualify. All four original ARM board variants remain, with an additional16-slot
+variant. `tests/arm_memory.py` binds the actual compiled owner C, effective
+config, map and ELF symbols: at16 positions/four held combos, active storage is
+352 bytes instead of2144. It separately checks each linked response and rejects
+retained state when the feature/RPC is disabled. These are static allocations,
+not runtime stack/heap peaks or arbitrary nested-replay stack acceptance.
 
 The real production [DTS defaults boundary entry](dt-defaults/README.md) compiles
 23 cases through the selected DYA application and actual generated headers.

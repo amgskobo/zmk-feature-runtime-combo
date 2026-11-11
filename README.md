@@ -36,8 +36,9 @@ stored by numeric slot internally and can also have a display name for the Web U
   runtime combos, with per-combo overrides for all three.
 - Native-parity overlap resolution: if one combo's positions are a subset of
   another enabled combo's positions, the longer combo always wins.
-- Up to 16 combo slots (`CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS`, default 8; one
-  Studio list response holds 16), decoded into a RAM cache so the key-event hot
+- Up to 16 combo slots (`CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS`, default 8;
+  the Studio list stores every configured slot within the protocol's16-slot
+  limit), decoded into a RAM cache so the key-event hot
   path never touches the settings registry. An edit marks its slot stale and
   the next key event rebuilds it, so the cache is only touched by the thread
   that matches combos. Settings loaded at boot and changes made past this

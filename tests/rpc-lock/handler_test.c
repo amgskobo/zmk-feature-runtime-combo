@@ -66,6 +66,10 @@ static cormoran_runtime_combo_Response *allocate_response(pb_callback_t *callbac
 
 static unsigned mutations;
 static const char key_press[] = "key_press";
+enum list_mode { LIST_ORIGINAL, LIST_MAXIMUM, LIST_HOLES, LIST_EMPTY };
+static enum list_mode list_mode;
+static bool list_corrupted;
+static unsigned list_reads, list_name_reads;
 static zmk_behavior_local_id_t zmk_behavior_get_local_id(const char *name) {
     (void)name;
     return 1;
@@ -92,6 +96,35 @@ static int zmk_custom_settings_discard_scope(const char *subsystem, const char *
 
 /* Slot 0 holds a combo; slot 1 a record whose behavior left the keymap. */
 int zmk_runtime_combo_read(uint32_t index, struct zmk_runtime_combo_config *combo) {
+    if (list_mode != LIST_ORIGINAL) {
+        list_reads++;
+        if (list_corrupted) {
+            return -EIO;
+        }
+        if (index >= CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS || list_mode == LIST_EMPTY ||
+            (list_mode == LIST_HOLES && index == 3)) {
+            return -ENOENT;
+        }
+        if (list_mode == LIST_HOLES && index == 1) {
+            return -ENODEV;
+        }
+        *combo = (struct zmk_runtime_combo_config){
+            .enabled = (index % 2) == 0,
+            .key_position_len = 16,
+            .layer_mask = UINT32_MAX - index,
+            .behavior = {.behavior_dev = index % 3 ? key_press : NULL,
+                         .param1 = UINT32_MAX - index,
+                         .param2 = UINT32_C(0x80000000) + index},
+            .timeout_ms = index % 2 ? UINT16_MAX : 0,
+            .require_prior_idle_ms = index % 2 ? 0 : UINT16_MAX,
+            .slow_release_override = index % 3,
+        };
+        for (uint32_t i = 0; i < combo->key_position_len; i++) {
+            /* Keep the getter's full-width position domain observable. */
+            combo->key_positions[i] = (index + 1) * UINT32_C(0x10000) + i;
+        }
+        return 0;
+    }
     if (index == 1) {
         return -ENODEV;
     }
@@ -107,6 +140,18 @@ int zmk_runtime_combo_read(uint32_t index, struct zmk_runtime_combo_config *comb
     return 0;
 }
 int zmk_runtime_combo_read_name(uint32_t index, char *name, size_t size) {
+    if (list_mode != LIST_ORIGINAL) {
+        list_name_reads++;
+        assert(size == 64);
+        if (list_corrupted || (list_mode == LIST_HOLES && index == 2)) {
+            return -EIO;
+        }
+        for (size_t i = 0; i < 63; i++) {
+            name[i] = 'A' + (index + i) % 26;
+        }
+        name[63] = '\0';
+        return 0;
+    }
     (void)index;
     snprintf(name, size, "combo");
     return 0;
@@ -115,10 +160,18 @@ int zmk_runtime_combo_read_global_settings(struct zmk_runtime_combo_global_setti
     *settings = (struct zmk_runtime_combo_global_settings){.timeout_ms = 50, .max_combo = 4};
     return 0;
 }
-uint32_t zmk_runtime_combo_count(void) { return 2; }
-uint32_t zmk_runtime_combo_max_count(void) { return 4; }
-bool zmk_runtime_combo_has_default(uint32_t index) { return index == 0; }
-bool zmk_runtime_combo_has_override(uint32_t index) { return false; }
+uint32_t zmk_runtime_combo_count(void) {
+    return list_mode == LIST_ORIGINAL ? 2 : CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS;
+}
+uint32_t zmk_runtime_combo_max_count(void) {
+    return list_mode == LIST_ORIGINAL ? 4 : CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS;
+}
+bool zmk_runtime_combo_has_default(uint32_t index) {
+    return list_mode == LIST_ORIGINAL ? index == 0 : index % 4 == 1 || index % 4 == 2;
+}
+bool zmk_runtime_combo_has_override(uint32_t index) {
+    return list_mode != LIST_ORIGINAL && (index % 4 == 2 || index % 4 == 3);
+}
 #define MUTATOR(...)                                                                               \
     {                                                                                              \
         mutations++;                                                                               \
@@ -183,6 +236,36 @@ static void name_codec_bounds(void) {
     }
 }
 
+static void list_wire_vector(enum list_mode mode, const char *name) {
+    list_mode = mode;
+    list_corrupted = false;
+    list_reads = list_name_reads = 0;
+    lock_state = ZMK_STUDIO_CORE_LOCK_STATE_LOCKED;
+    call(cormoran_runtime_combo_Request_list_combos_tag);
+    assert(response.which_response_type == cormoran_runtime_combo_Response_list_combos_tag);
+    assert(list_reads == CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS);
+    size_t expected_size;
+    assert(pb_get_encoded_size(&expected_size, cormoran_runtime_combo_Response_fields, &response));
+    const unsigned reads = list_reads, name_reads = list_name_reads;
+    /* Storage changes after admission must not affect sizing/output passes. */
+    list_corrupted = true;
+    static uint8_t encoded[8192];
+    pb_ostream_t stream = pb_ostream_from_buffer(encoded, sizeof(encoded));
+    assert(pb_encode(&stream, cormoran_runtime_combo_Response_fields, &response));
+    assert(stream.bytes_written == expected_size);
+    size_t repeated_size;
+    assert(pb_get_encoded_size(&repeated_size, cormoran_runtime_combo_Response_fields, &response));
+    assert(repeated_size == expected_size);
+    assert(list_reads == reads && list_name_reads == name_reads);
+    printf("WIRE %s ", name);
+    for (size_t i = 0; i < stream.bytes_written; i++) {
+        printf("%02x", encoded[i]);
+    }
+    printf("\n");
+    list_mode = LIST_ORIGINAL;
+    list_corrupted = false;
+}
+
 int main(void) {
     const pb_size_t changes[] = {
         cormoran_runtime_combo_Request_set_combo_tag,
@@ -233,6 +316,15 @@ int main(void) {
     assert(response.which_response_type == cormoran_runtime_combo_Response_status_tag);
     assert(mutations > before);
     name_codec_bounds();
+
+    list_wire_vector(LIST_MAXIMUM, "maximum");
+    list_wire_vector(LIST_HOLES, "holes");
+    list_wire_vector(LIST_EMPTY, "empty");
+    printf("runtime combo list wire: PASS max=%d\n", CONFIG_ZMK_RUNTIME_COMBO_MAX_COMBOS);
+    printf("runtime combo response bytes: %zu\n", sizeof(response));
+    printf("runtime combo ABI: pointer=%zu slow_enum=%zu source_enum=%zu\n", sizeof(void *),
+           sizeof(cormoran_runtime_combo_SlowReleaseOverride),
+           sizeof(cormoran_runtime_combo_ComboSource));
 
     (void)runtime_combo_meta;
     printf("runtime combo rpc lock: PASS variant=%s changes=%zu\n", TEST_VARIANT,

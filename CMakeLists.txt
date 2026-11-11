@@ -14,6 +14,14 @@ if(CONFIG_ZMK_RUNTIME_COMBO)
         zephyr_library()
         file(GLOB_RECURSE PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/proto/*.proto)
 
+        # FindNanopb configures .options.in in the build tree. Keep the ordinary
+        # .options file as the protocol-16 standalone-generator fallback.
+        set(RUNTIME_COMBO_NANOPB_OPTIONS_FILE
+            ${CMAKE_CURRENT_SOURCE_DIR}/proto/cormoran/runtime_combo/runtime_combo.options)
+        file(READ ${RUNTIME_COMBO_NANOPB_OPTIONS_FILE} RUNTIME_COMBO_NANOPB_OPTIONS)
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                     ${RUNTIME_COMBO_NANOPB_OPTIONS_FILE})
+
         nanopb_generate_cpp(proto_srcs proto_hdrs RELPATH ${CMAKE_CURRENT_SOURCE_DIR} ${PROTO_FILES})
         target_include_directories(${ZEPHYR_CURRENT_LIBRARY} PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
         target_sources(${ZEPHYR_CURRENT_LIBRARY} PRIVATE ${proto_srcs} ${proto_hdrs})

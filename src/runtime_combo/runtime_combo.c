@@ -804,8 +804,9 @@ struct runtime_combo_active {
     uint8_t key_positions_count;
     bool slow_release;
     uint8_t key_positions_pressed_count;
-    struct zmk_position_state_changed_event
-        key_positions_pressed[CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO];
+    /* A held combo only needs position identity for its eventual releases;
+     * event headers, state and per-key times are not used after activation. */
+    uint32_t key_positions_pressed[CONFIG_ZMK_RUNTIME_COMBO_MAX_POSITIONS_PER_COMBO];
 };
 
 static uint8_t pending_count;
@@ -1059,13 +1060,14 @@ static struct runtime_combo_active *store_active_combo(uint32_t combo_idx, uint8
         .slow_release = effective_slow_release(combo),
     };
     for (uint8_t i = 0; i < count; i++) {
-        active->key_positions_pressed[i] = pending_keys[i];
+        active->key_positions_pressed[i] = pending_keys[i].data.position;
     }
     active->key_positions_pressed_count = count;
     return active;
 }
 
 static int activate_combo(uint32_t combo_idx, const struct runtime_combo *combo) {
+    const int64_t timestamp = pending_keys[0].data.timestamp;
     struct runtime_combo_active *active = store_active_combo(combo_idx, pending_count, combo);
     if (!active) {
         cleanup_pending();
@@ -1075,7 +1077,7 @@ static int activate_combo(uint32_t combo_idx, const struct runtime_combo *combo)
     fully_pressed_combo_idx = -1;
     k_work_cancel_delayable(&timeout_task);
     timeout_task_timeout_at = 0;
-    press_combo_behavior(combo_idx, combo, active->key_positions_pressed[0].data.timestamp);
+    press_combo_behavior(combo_idx, combo, timestamp);
     return ZMK_EV_EVENT_CAPTURED;
 }
 
@@ -1083,6 +1085,7 @@ static int activate_combo(uint32_t combo_idx, const struct runtime_combo *combo)
  * and replay any remaining pending keys as regular key events, since they were
  * captured while a longer candidate looked viable but ended up unused. */
 static void finish_pending_and_activate(uint32_t combo_idx, const struct runtime_combo *combo) {
+    const int64_t timestamp = pending_keys[0].data.timestamp;
     uint8_t combo_len = combo->key_position_len;
     uint8_t leftover_count = pending_count - combo_len;
     struct zmk_position_state_changed_event
@@ -1101,7 +1104,7 @@ static void finish_pending_and_activate(uint32_t combo_idx, const struct runtime
     k_work_cancel_delayable(&timeout_task);
     timeout_task_timeout_at = 0;
 
-    press_combo_behavior(combo_idx, combo, active->key_positions_pressed[0].data.timestamp);
+    press_combo_behavior(combo_idx, combo, timestamp);
 
     /* Replayed events re-enter the listener; `combo` is not used past here. */
     if (leftover_count > 1) {
@@ -1184,7 +1187,7 @@ static bool release_combo_key(uint32_t position, int64_t timestamp) {
             if (key_released) {
                 active->key_positions_pressed[i - 1] = active->key_positions_pressed[i];
                 all_keys_released = false;
-            } else if (active->key_positions_pressed[i].data.position != position) {
+            } else if (active->key_positions_pressed[i] != position) {
                 all_keys_released = false;
             } else {
                 key_released = true;
